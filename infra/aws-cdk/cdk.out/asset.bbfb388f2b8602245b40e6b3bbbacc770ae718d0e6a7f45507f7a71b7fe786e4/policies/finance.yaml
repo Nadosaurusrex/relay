@@ -1,0 +1,56 @@
+version: "1.0"
+package: "relay.policies.main"
+
+policies:
+  - name: "spending_limits"
+    description: "Enforce spending limits for financial transactions"
+    rules:
+      - id: "small_payments_allowed"
+        condition:
+          provider: "stripe"
+          method: "create_payment"
+          parameter_constraints:
+            amount:
+              max: 5000  # $50.00 in cents
+        action: "allow"
+
+      - id: "large_payments_denied"
+        condition:
+          provider: "stripe"
+          method: "create_payment"
+          parameter_constraints:
+            amount:
+              min: 5000  # Amounts over $50.00
+        action: "deny"
+        reason: "Payment amount exceeds $50.00 limit"
+
+  - name: "refund_policy"
+    description: "Allow refunds up to $100"
+    rules:
+      - id: "small_refunds_allowed"
+        condition:
+          provider: "stripe"
+          method: "create_refund"
+          parameter_constraints:
+            amount:
+              max: 10000  # $100.00 in cents
+        action: "allow"
+
+      - id: "large_refunds_denied"
+        condition:
+          provider: "stripe"
+          method: "create_refund"
+          parameter_constraints:
+            amount:
+              min: 10000
+        action: "deny"
+        reason: "Refund amount exceeds $100.00 limit"
+
+  - name: "environment_restrictions"
+    description: "Restrict production operations"
+    rules:
+      - id: "allow_staging_operations"
+        condition:
+          environment: "staging"
+          provider: "stripe"
+        action: "allow"
