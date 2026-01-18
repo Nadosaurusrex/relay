@@ -122,7 +122,7 @@ class RelayStack(Stack):
             secret_name=f"relay/db-credentials-{self.env_name}",
         )
 
-        # Create database instance
+        # Create database instance (Free Tier compatible for V1)
         database = rds.DatabaseInstance(
             self,
             "RelayDatabase",
@@ -131,21 +131,21 @@ class RelayStack(Stack):
             ),
             instance_type=ec2.InstanceType.of(
                 ec2.InstanceClass.BURSTABLE3,
-                ec2.InstanceSize.SMALL if self.env_name == "prod" else ec2.InstanceSize.MICRO,
+                ec2.InstanceSize.MICRO,  # Free Tier: 750 hours/month
             ),
             vpc=self.vpc,
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_ISOLATED),
             security_groups=[db_security_group],
             database_name="relay",
             credentials=rds.Credentials.from_secret(db_credentials),
-            allocated_storage=20,
-            max_allocated_storage=100,
+            allocated_storage=20,  # Free Tier: up to 20GB
+            max_allocated_storage=20,  # Disable autoscaling for free tier
             storage_encrypted=True,
-            multi_az=self.env_name == "prod",  # Multi-AZ for production
-            backup_retention=Duration.days(7 if self.env_name == "prod" else 1),
-            deletion_protection=self.env_name == "prod",
-            removal_policy=RemovalPolicy.RETAIN if self.env_name == "prod" else RemovalPolicy.DESTROY,
-            enable_performance_insights=True,
+            multi_az=False,  # Free Tier: Single-AZ only
+            backup_retention=Duration.days(0),  # Free Tier: Disable automated backups
+            deletion_protection=False,  # Allow easy cleanup for V1
+            removal_policy=RemovalPolicy.DESTROY,
+            enable_performance_insights=False,  # Not included in free tier
             cloudwatch_logs_exports=["postgresql"],
         )
 
@@ -208,8 +208,8 @@ class RelayStack(Stack):
         task_definition = ecs.FargateTaskDefinition(
             self,
             "RelayTaskDefinition",
-            memory_limit_mib=1024 if self.env_name == "prod" else 512,
-            cpu=512 if self.env_name == "prod" else 256,
+            memory_limit_mib=512,  # Free Tier compatible
+            cpu=256,  # Free Tier compatible
         )
 
         # Grant permissions to task role
@@ -278,7 +278,7 @@ class RelayStack(Stack):
                 stream_prefix="gateway",
                 log_group=log_group,
             ),
-            memory_limit_mib=512 if self.env_name == "prod" else 256,
+            memory_limit_mib=256,  # Free Tier compatible
             essential=True,
         )
 
@@ -300,7 +300,7 @@ class RelayStack(Stack):
             "RelayService",
             cluster=cluster,
             task_definition=task_definition,
-            desired_count=2 if self.env_name == "prod" else 1,
+            desired_count=1,  # Free Tier: Single task
             public_load_balancer=True,
             health_check_grace_period=Duration.seconds(60),
         )
