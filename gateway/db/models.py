@@ -94,3 +94,81 @@ class SealRecord(Base):
 Index("idx_manifests_org_agent", ManifestRecord.org_id, ManifestRecord.agent_id)
 Index("idx_manifests_provider_method", ManifestRecord.provider, ManifestRecord.method)
 Index("idx_seals_approved_issued", SealRecord.approved, SealRecord.issued_at)
+
+
+class Organization(Base):
+    """
+    Organization registry for multi-tenancy.
+
+    Each organization can have multiple agents.
+    """
+
+    __tablename__ = "organizations"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    org_id = Column(String(255), nullable=False, unique=True, index=True)
+    org_name = Column(String(255), nullable=False)
+    contact_email = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, index=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    # Relationship to agents
+    agents = relationship("Agent", back_populates="organization")
+
+    def __repr__(self):
+        return f"<Organization(org_id={self.org_id}, org_name={self.org_name})>"
+
+
+class Agent(Base):
+    """
+    Agent registry with JWT-only authentication.
+
+    Each agent belongs to one organization and receives a JWT token upon registration.
+    api_key_hash is nullable in V1 (reserved for future use).
+    """
+
+    __tablename__ = "agents"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    agent_id = Column(String(255), nullable=False, unique=True, index=True)
+    org_id = Column(String(255), ForeignKey("organizations.org_id"), nullable=False, index=True)
+    agent_name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    api_key_hash = Column(String(255), nullable=True)  # Nullable in V1
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, index=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    # Relationship to organization
+    organization = relationship("Organization", back_populates="agents")
+
+    def __repr__(self):
+        return f"<Agent(agent_id={self.agent_id}, org_id={self.org_id})>"
+
+
+class AuthEvent(Base):
+    """
+    Immutable audit trail for authentication and authorization events.
+
+    This table logs all auth-related events for security auditing.
+    """
+
+    __tablename__ = "auth_events"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    event_id = Column(UUID(as_uuid=True), nullable=False, unique=True, index=True)
+    event_type = Column(String(50), nullable=False, index=True)
+    agent_id = Column(String(255), nullable=True)
+    org_id = Column(String(255), nullable=True)
+    endpoint = Column(String(255), nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    success = Column(Boolean, nullable=False, index=True)
+    failure_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, index=True)
+
+    def __repr__(self):
+        return f"<AuthEvent(event_type={self.event_type}, success={self.success}, agent={self.agent_id})>"
+
+
+# Indexes for auth tables
+Index("idx_agents_org_active", Agent.org_id, Agent.is_active)
+Index("idx_auth_events_type_success", AuthEvent.event_type, AuthEvent.success)

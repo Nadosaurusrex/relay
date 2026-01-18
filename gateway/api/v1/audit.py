@@ -10,13 +10,15 @@ from sqlalchemy.orm import Session
 
 from gateway.db.session import get_db
 from gateway.core.ledger import LedgerWriter
+from gateway.core.auth import verify_jwt_optional, AuthContext
 
 router = APIRouter(prefix="/v1/audit", tags=["audit"])
 
 
 @router.get("/query")
 async def query_audit_trail(
-    org_id: Optional[str] = Query(None, description="Filter by organization ID"),
+    auth: Optional[AuthContext] = Depends(verify_jwt_optional),
+    org_id: Optional[str] = Query(None, description="Filter by organization ID (ignored if authenticated - uses authenticated org)"),
     agent_id: Optional[str] = Query(None, description="Filter by agent ID"),
     provider: Optional[str] = Query(None, description="Filter by provider (e.g., 'stripe')"),
     approved_only: Optional[bool] = Query(None, description="Filter by approval status"),
@@ -30,8 +32,11 @@ async def query_audit_trail(
     This endpoint provides read-only access to the audit ledger
     for compliance, debugging, and analysis.
 
+    If authenticated, results are automatically filtered to the authenticated organization.
+
     Args:
-        org_id: Filter by organization
+        auth: Authentication context (optional based on auth_required flag)
+        org_id: Filter by organization (ignored if authenticated)
         agent_id: Filter by agent
         provider: Filter by provider
         approved_only: If True, show only approved; if False, show only denied
@@ -44,8 +49,11 @@ async def query_audit_trail(
     """
     ledger = LedgerWriter(db)
 
+    # Enforce org-scoped access if authenticated
+    effective_org_id = auth.org_id if auth is not None else org_id
+
     manifests = ledger.query_manifests(
-        org_id=org_id,
+        org_id=effective_org_id,
         agent_id=agent_id,
         provider=provider,
         approved_only=approved_only,
@@ -86,12 +94,21 @@ async def query_audit_trail(
 
 @router.get("/stats")
 async def get_audit_stats(
-    org_id: Optional[str] = Query(None, description="Filter by organization ID"),
+    auth: Optional[AuthContext] = Depends(verify_jwt_optional),
+    org_id: Optional[str] = Query(None, description="Filter by organization ID (ignored if authenticated - uses authenticated org)"),
     agent_id: Optional[str] = Query(None, description="Filter by agent ID"),
     db: Session = Depends(get_db),
 ):
     """
     Get statistics about the audit trail.
+
+    If authenticated, results are automatically filtered to the authenticated organization.
+
+    Args:
+        auth: Authentication context (optional based on auth_required flag)
+        org_id: Filter by organization (ignored if authenticated)
+        agent_id: Filter by agent
+        db: Database session
 
     Returns:
         Aggregate statistics about manifests and seals
@@ -101,8 +118,11 @@ async def get_audit_stats(
 
     query = db.query(ManifestRecord)
 
-    if org_id:
-        query = query.filter(ManifestRecord.org_id == org_id)
+    # Enforce org-scoped access if authenticated
+    effective_org_id = auth.org_id if auth is not None else org_id
+
+    if effective_org_id:
+        query = query.filter(ManifestRecord.org_id == effective_org_id)
     if agent_id:
         query = query.filter(ManifestRecord.agent_id == agent_id)
 

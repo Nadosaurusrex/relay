@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["*"]
     cors_allow_credentials: bool = True
 
+    # Authentication
+    jwt_secret: Optional[str] = None  # Required for production (base64 or hex string)
+    jwt_expiry_hours: int = 1  # JWT token expiry (1 hour default)
+    auth_required: bool = False  # Feature flag for backward compatibility
+
     @property
     def database_url(self) -> str:
         """Build PostgreSQL connection string."""

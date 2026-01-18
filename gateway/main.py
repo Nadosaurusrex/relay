@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 
 from gateway.config import get_settings
 from gateway.db.session import DatabaseManager, DatabaseConfig
-from gateway.api.v1 import manifest, seal, audit
+from gateway.api.v1 import manifest, seal, audit, orgs, agents
 
 # Global database manager
 db_manager = None
@@ -86,6 +86,8 @@ app.add_middleware(
 app.include_router(manifest.router)
 app.include_router(seal.router)
 app.include_router(audit.router)
+app.include_router(orgs.router)
+app.include_router(agents.router)
 
 
 @app.get("/")
@@ -100,6 +102,10 @@ async def root():
             "verify": "GET /v1/seal/verify",
             "audit": "GET /v1/audit/query",
             "health": "GET /v1/manifest/health",
+            "register_org": "POST /v1/orgs/register",
+            "get_org": "GET /v1/orgs/{org_id}",
+            "register_agent": "POST /v1/agents/register",
+            "list_agents": "GET /v1/agents",
         },
     }
 

@@ -4,7 +4,8 @@ Manifest validation API endpoints.
 POST /v1/manifest/validate - Validate a manifest against policies
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from gateway.db.session import get_db
@@ -12,6 +13,7 @@ from gateway.models.manifest import ManifestValidationRequest, ManifestValidatio
 from gateway.core.seal import SealGenerator
 from gateway.core.policy_engine import PolicyEngine, PolicyEngineError
 from gateway.core.ledger import LedgerWriter
+from gateway.core.auth import verify_jwt_optional, AuthContext, log_auth_event
 from gateway.config import get_settings
 
 router = APIRouter(prefix="/v1/manifest", tags=["manifest"])
@@ -19,7 +21,9 @@ router = APIRouter(prefix="/v1/manifest", tags=["manifest"])
 
 @router.post("/validate", response_model=ManifestValidationResponse)
 async def validate_manifest(
+    req: Request,
     request: ManifestValidationRequest,
+    auth: Optional[AuthContext] = Depends(verify_jwt_optional),
     db: Session = Depends(get_db),
 ):
     """
@@ -33,7 +37,9 @@ async def validate_manifest(
     5. Returns sealed approval or denial
 
     Args:
+        req: FastAPI request object
         request: ManifestValidationRequest with manifest to validate
+        auth: Authentication context (optional based on auth_required flag)
         db: Database session
 
     Returns:
@@ -44,6 +50,24 @@ async def validate_manifest(
     """
     manifest = request.manifest
     settings = get_settings()
+
+    # Authorization check: if authenticated, manifest org_id must match
+    if auth is not None:
+        if manifest.agent.org_id != auth.org_id:
+            await log_auth_event(
+                db=db,
+                event_type="authorization_failure",
+                success=False,
+                agent_id=auth.agent_id,
+                org_id=auth.org_id,
+                endpoint="/v1/manifest/validate",
+                ip_address=req.client.host if req.client else None,
+                failure_reason=f"Org mismatch: authenticated as {auth.org_id}, manifest has {manifest.agent.org_id}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Organization mismatch: cannot validate manifest for another organization"
+            )
 
     # Initialize components
     policy_engine = PolicyEngine(

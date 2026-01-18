@@ -15,6 +15,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../gateway/db/migrations/versions/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql
+      - ../gateway/db/migrations/versions/002_add_auth_tables.sql:/docker-entrypoint-initdb.d/002_add_auth_tables.sql
+      - ../gateway/db/migrations/versions/003_make_api_key_hash_nullable.sql:/docker-entrypoint-initdb.d/003_make_api_key_hash_nullable.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U relay -d relay"]
       interval: 10s
@@ -35,7 +37,7 @@ services:
     ports:
       - "8181:8181"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8181/health"]
+      test: ["CMD", "/opa", "version"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -58,6 +60,9 @@ services:
       RELAY_API_HOST: 0.0.0.0
       RELAY_API_PORT: 8000
       RELAY_PRIVATE_KEY: ${RELAY_PRIVATE_KEY}
+      RELAY_JWT_SECRET: ${RELAY_JWT_SECRET:-test_jwt_secret_for_development_only}
+      RELAY_JWT_EXPIRY_HOURS: 1
+      RELAY_AUTH_REQUIRED: false
     ports:
       - "8000:8000"
     depends_on:
