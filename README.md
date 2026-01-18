@@ -62,16 +62,20 @@ This starts:
 python scripts/bootstrap_policies.py
 ```
 
-### 4. Run the Demo
+### 4. Run Examples
 
 ```bash
-python demo/agent.py
+# Quick demo
+python examples/simple_demo.py
+
+# Or explore Jupyter notebooks
+cd examples && jupyter notebook
 ```
 
 ### 5. View Audit Trail
 
 ```bash
-python demo/visualize.py
+python examples/visualize.py
 ```
 
 ## 📦 Installation
@@ -115,6 +119,27 @@ RELAY_SEAL_TTL_MINUTES=5
 RELAY_API_HOST=0.0.0.0
 RELAY_API_PORT=8000
 ```
+
+## 📚 Examples & Tutorials
+
+The `examples/` directory contains comprehensive Jupyter notebooks demonstrating Relay's capabilities:
+
+### Core Examples
+
+1. **01_getting_started.ipynb** - Quick introduction to Relay basics
+2. **02_adversarial_prompt_protection.ipynb** - The "Air Gap" concept: protection from LLM manipulation
+3. **03_langchain_integration.ipynb** - Seamless integration with LangChain (3 lines of code)
+4. **04_company_policies.ipynb** - Mapping business rules to technical constraints
+5. **05_real_world_scenarios.ipynb** - Production scenarios with cost-benefit analysis
+
+### Key Demonstrations
+
+- 🛡️ **Safety**: Even if an LLM is convinced by adversarial prompts, Relay blocks unauthorized actions
+- 🔌 **Integration**: Add governance to existing frameworks with minimal code changes
+- 📋 **Policy Mapping**: Translate CFO/CTO rules into enforceable YAML policies
+- 💰 **ROI**: Real incidents that cost millions, and how Relay prevents them
+
+See `examples/README.md` for detailed learning paths and guides.
 
 ## 💻 SDK Usage
 
