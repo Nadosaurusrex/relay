@@ -67,3 +67,9 @@ htmlcov/
 tmp/
 temp/
 *.tmp
+
+# CDK
+infra/aws-cdk/cdk.out/
+*.swp
+.cdk.staging/
+cdk.context.json
