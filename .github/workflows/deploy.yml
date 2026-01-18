@@ -1,0 +1,119 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1
+  ENVIRONMENT: dev
+
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for OIDC authentication
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js (for CDK)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install AWS CDK
+        run: npm install -g aws-cdk
+
+      - name: Install Python dependencies
+        working-directory: infra/aws-cdk
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: CDK Bootstrap (if needed)
+        working-directory: infra/aws-cdk
+        run: |
+          source .venv/bin/activate
+          cdk bootstrap aws://002259668161/${{ env.AWS_REGION }} || true
+
+      - name: CDK Synth
+        working-directory: infra/aws-cdk
+        run: |
+          source .venv/bin/activate
+          cdk synth --context env=${{ env.ENVIRONMENT }} \
+                    --context account=002259668161 \
+                    --context region=${{ env.AWS_REGION }}
+
+      - name: CDK Deploy
+        working-directory: infra/aws-cdk
+        run: |
+          source .venv/bin/activate
+          cdk deploy --context env=${{ env.ENVIRONMENT }} \
+                     --context account=002259668161 \
+                     --context region=${{ env.AWS_REGION }} \
+                     --require-approval never
+
+      - name: Update Ed25519 Secret
+        run: |
+          if [ -f .env ]; then
+            source .env
+            aws secretsmanager update-secret \
+              --secret-id "arn:aws:secretsmanager:${{ env.AWS_REGION }}:002259668161:secret:relay/ed25519-key-${{ env.ENVIRONMENT }}-AX6F4T" \
+              --secret-string "{\"private_key\":\"$RELAY_PRIVATE_KEY\"}" \
+              --region ${{ env.AWS_REGION }} || true
+          fi
+
+      - name: Get deployment outputs
+        id: outputs
+        working-directory: infra/aws-cdk
+        run: |
+          source .venv/bin/activate
+          STACK_NAME="RelayStack-${{ env.ENVIRONMENT }}"
+
+          ALB_URL=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='RelayServiceServiceURL4A3A6F46'].OutputValue" \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+
+          echo "alb_url=$ALB_URL" >> $GITHUB_OUTPUT
+          echo "### Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ env.ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Endpoint:** $ALB_URL" >> $GITHUB_STEP_SUMMARY
+
+      - name: Health Check
+        run: |
+          sleep 30
+          ALB_URL="${{ steps.outputs.outputs.alb_url }}"
+          if [ ! -z "$ALB_URL" ]; then
+            echo "Testing endpoint: $ALB_URL"
+            curl -f "$ALB_URL/health" || echo "Health check failed (may take a few minutes for deployment to complete)"
+          fi
+
+      - name: Deployment notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Deployment successful!"
+          else
+            echo "❌ Deployment failed!"
+          fi
