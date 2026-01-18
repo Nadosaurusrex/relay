@@ -47,6 +47,13 @@ async def lifespan(app: FastAPI):
     db_manager = DatabaseManager(db_config)
     db_manager.initialize()
 
+    # Create tables if they don't exist (for initial deployment)
+    try:
+        db_manager.create_tables()
+        print("📦 Database tables initialized")
+    except Exception as e:
+        print(f"⚠️  Table creation skipped (may already exist): {e}")
+
     # Make db_manager available to session.py
     import gateway.db.session as session_module
     session_module.db_manager = db_manager
