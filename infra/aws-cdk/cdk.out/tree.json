@@ -45,7 +45,7 @@
                     "attributes": {
                       "aws:cdk:cloudformation:type": "AWS::EC2::Subnet",
                       "aws:cdk:cloudformation:props": {
-                        "availabilityZone": "eu-west-3a",
+                        "availabilityZone": "us-east-1a",
                         "cidrBlock": "10.0.0.0/24",
                         "mapPublicIpOnLaunch": true,
                         "tags": [
@@ -205,7 +205,7 @@
                     "attributes": {
                       "aws:cdk:cloudformation:type": "AWS::EC2::Subnet",
                       "aws:cdk:cloudformation:props": {
-                        "availabilityZone": "eu-west-3b",
+                        "availabilityZone": "us-east-1b",
                         "cidrBlock": "10.0.1.0/24",
                         "mapPublicIpOnLaunch": true,
                         "tags": [
@@ -317,7 +317,7 @@
                     "attributes": {
                       "aws:cdk:cloudformation:type": "AWS::EC2::Subnet",
                       "aws:cdk:cloudformation:props": {
-                        "availabilityZone": "eu-west-3a",
+                        "availabilityZone": "us-east-1a",
                         "cidrBlock": "10.0.2.0/24",
                         "mapPublicIpOnLaunch": false,
                         "tags": [
@@ -429,7 +429,7 @@
                     "attributes": {
                       "aws:cdk:cloudformation:type": "AWS::EC2::Subnet",
                       "aws:cdk:cloudformation:props": {
-                        "availabilityZone": "eu-west-3b",
+                        "availabilityZone": "us-east-1b",
                         "cidrBlock": "10.0.3.0/24",
                         "mapPublicIpOnLaunch": false,
                         "tags": [
@@ -541,7 +541,7 @@
                     "attributes": {
                       "aws:cdk:cloudformation:type": "AWS::EC2::Subnet",
                       "aws:cdk:cloudformation:props": {
-                        "availabilityZone": "eu-west-3a",
+                        "availabilityZone": "us-east-1a",
                         "cidrBlock": "10.0.4.0/24",
                         "mapPublicIpOnLaunch": false,
                         "tags": [
@@ -633,7 +633,7 @@
                     "attributes": {
                       "aws:cdk:cloudformation:type": "AWS::EC2::Subnet",
                       "aws:cdk:cloudformation:props": {
-                        "availabilityZone": "eu-west-3b",
+                        "availabilityZone": "us-east-1b",
                         "cidrBlock": "10.0.5.0/24",
                         "mapPublicIpOnLaunch": false,
                         "tags": [
@@ -1011,7 +1011,7 @@
                         }
                       ]
                     },
-                    "bucketName": "relay-policies-002259668161-eu-west-3-dev",
+                    "bucketName": "relay-policies-002259668161-us-east-1-dev",
                     "publicAccessBlockConfiguration": {
                       "blockPublicAcls": true,
                       "blockPublicPolicy": true,
@@ -1646,7 +1646,7 @@
                               "Ref": "RelayLogGroup3D87BE87"
                             },
                             "awslogs-stream-prefix": "opa",
-                            "awslogs-region": "eu-west-3"
+                            "awslogs-region": "us-east-1"
                           }
                         }
                       },
@@ -1659,7 +1659,7 @@
                         ],
                         "essential": true,
                         "image": {
-                          "Fn::Sub": "002259668161.dkr.ecr.eu-west-3.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-002259668161-eu-west-3:0384814b3aaa6c69b7b41230d7bb6e638ed2f5ca84764672753b1602c7e63b8c"
+                          "Fn::Sub": "002259668161.dkr.ecr.us-east-1.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-002259668161-us-east-1:b1a37b13758e80f3a8add38cc429eae77f1e1ddfe539706a90fb42f0a2aaaf4c"
                         },
                         "memory": 256,
                         "name": "Gateway",
@@ -1676,7 +1676,7 @@
                               "Ref": "RelayLogGroup3D87BE87"
                             },
                             "awslogs-stream-prefix": "gateway",
-                            "awslogs-region": "eu-west-3"
+                            "awslogs-region": "us-east-1"
                           }
                         },
                         "environment": [
@@ -1706,7 +1706,7 @@
                           },
                           {
                             "name": "AWS_REGION",
-                            "value": "eu-west-3"
+                            "value": "us-east-1"
                           },
                           {
                             "name": "S3_POLICY_BUCKET",
@@ -1882,7 +1882,7 @@
                                     "ecr:GetDownloadUrlForLayer"
                                   ],
                                   "Effect": "Allow",
-                                  "Resource": "arn:aws:ecr:eu-west-3:002259668161:repository/cdk-hnb659fds-container-assets-002259668161-eu-west-3"
+                                  "Resource": "arn:aws:ecr:us-east-1:002259668161:repository/cdk-hnb659fds-container-assets-002259668161-us-east-1"
                                 },
                                 {
                                   "Action": "ecr:GetAuthorizationToken",

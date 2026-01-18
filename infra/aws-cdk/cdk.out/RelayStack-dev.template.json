@@ -22,7 +22,7 @@
   "RelayVPCPublicSubnet1Subnet91600FE5": {
    "Type": "AWS::EC2::Subnet",
    "Properties": {
-    "AvailabilityZone": "eu-west-3a",
+    "AvailabilityZone": "us-east-1a",
     "CidrBlock": "10.0.0.0/24",
     "MapPublicIpOnLaunch": true,
     "Tags": [
@@ -141,7 +141,7 @@
   "RelayVPCPublicSubnet2Subnet988AACC4": {
    "Type": "AWS::EC2::Subnet",
    "Properties": {
-    "AvailabilityZone": "eu-west-3b",
+    "AvailabilityZone": "us-east-1b",
     "CidrBlock": "10.0.1.0/24",
     "MapPublicIpOnLaunch": true,
     "Tags": [
@@ -218,7 +218,7 @@
   "RelayVPCPrivateSubnet1Subnet9B3B65AC": {
    "Type": "AWS::EC2::Subnet",
    "Properties": {
-    "AvailabilityZone": "eu-west-3a",
+    "AvailabilityZone": "us-east-1a",
     "CidrBlock": "10.0.2.0/24",
     "MapPublicIpOnLaunch": false,
     "Tags": [
@@ -292,7 +292,7 @@
   "RelayVPCPrivateSubnet2Subnet9052FEDB": {
    "Type": "AWS::EC2::Subnet",
    "Properties": {
-    "AvailabilityZone": "eu-west-3b",
+    "AvailabilityZone": "us-east-1b",
     "CidrBlock": "10.0.3.0/24",
     "MapPublicIpOnLaunch": false,
     "Tags": [
@@ -366,7 +366,7 @@
   "RelayVPCIsolatedSubnet1Subnet2E1DCC35": {
    "Type": "AWS::EC2::Subnet",
    "Properties": {
-    "AvailabilityZone": "eu-west-3a",
+    "AvailabilityZone": "us-east-1a",
     "CidrBlock": "10.0.4.0/24",
     "MapPublicIpOnLaunch": false,
     "Tags": [
@@ -425,7 +425,7 @@
   "RelayVPCIsolatedSubnet2Subnet5E0B9592": {
    "Type": "AWS::EC2::Subnet",
    "Properties": {
-    "AvailabilityZone": "eu-west-3b",
+    "AvailabilityZone": "us-east-1b",
     "CidrBlock": "10.0.5.0/24",
     "MapPublicIpOnLaunch": false,
     "Tags": [
@@ -686,7 +686,7 @@
            "Fn::Join": [
             "",
             [
-             "arn:aws:ec2:eu-west-3:002259668161:security-group/",
+             "arn:aws:ec2:us-east-1:002259668161:security-group/",
              {
               "Fn::GetAtt": [
                "RelayVPC97D18042",
@@ -711,7 +711,7 @@
    "Type": "AWS::Lambda::Function",
    "Properties": {
     "Code": {
-     "S3Bucket": "cdk-hnb659fds-assets-002259668161-eu-west-3",
+     "S3Bucket": "cdk-hnb659fds-assets-002259668161-us-east-1",
      "S3Key": "dd5711540f04e06aa955d7f4862fc04e8cdea464cb590dae91ed2976bb78098e.zip"
     },
     "Timeout": 900,
@@ -747,7 +747,7 @@
       }
      ]
     },
-    "BucketName": "relay-policies-002259668161-eu-west-3-dev",
+    "BucketName": "relay-policies-002259668161-us-east-1-dev",
     "PublicAccessBlockConfiguration": {
      "BlockPublicAcls": true,
      "BlockPublicPolicy": true,
@@ -876,7 +876,7 @@
    "Type": "AWS::Lambda::Function",
    "Properties": {
     "Code": {
-     "S3Bucket": "cdk-hnb659fds-assets-002259668161-eu-west-3",
+     "S3Bucket": "cdk-hnb659fds-assets-002259668161-us-east-1",
      "S3Key": "b7f33614a69548d6bafe224d751a7ef238cde19097415e553fe8b63a4c8fd8a6.zip"
     },
     "Timeout": 900,
@@ -1225,7 +1225,7 @@
          "Ref": "RelayLogGroup3D87BE87"
         },
         "awslogs-stream-prefix": "opa",
-        "awslogs-region": "eu-west-3"
+        "awslogs-region": "us-east-1"
        }
       },
       "Memory": 256,
@@ -1271,7 +1271,7 @@
        },
        {
         "Name": "AWS_REGION",
-        "Value": "eu-west-3"
+        "Value": "us-east-1"
        },
        {
         "Name": "S3_POLICY_BUCKET",
@@ -1286,7 +1286,7 @@
       ],
       "Essential": true,
       "Image": {
-       "Fn::Sub": "002259668161.dkr.ecr.eu-west-3.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-002259668161-eu-west-3:0384814b3aaa6c69b7b41230d7bb6e638ed2f5ca84764672753b1602c7e63b8c"
+       "Fn::Sub": "002259668161.dkr.ecr.us-east-1.${AWS::URLSuffix}/cdk-hnb659fds-container-assets-002259668161-us-east-1:b1a37b13758e80f3a8add38cc429eae77f1e1ddfe539706a90fb42f0a2aaaf4c"
       },
       "LogConfiguration": {
        "LogDriver": "awslogs",
@@ -1295,7 +1295,7 @@
          "Ref": "RelayLogGroup3D87BE87"
         },
         "awslogs-stream-prefix": "gateway",
-        "awslogs-region": "eu-west-3"
+        "awslogs-region": "us-east-1"
        }
       },
       "Memory": 256,
@@ -1435,7 +1435,7 @@
         "ecr:GetDownloadUrlForLayer"
        ],
        "Effect": "Allow",
-       "Resource": "arn:aws:ecr:eu-west-3:002259668161:repository/cdk-hnb659fds-container-assets-002259668161-eu-west-3"
+       "Resource": "arn:aws:ecr:us-east-1:002259668161:repository/cdk-hnb659fds-container-assets-002259668161-us-east-1"
       },
       {
        "Action": "ecr:GetAuthorizationToken",

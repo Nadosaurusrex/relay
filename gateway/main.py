@@ -108,6 +108,7 @@ async def root():
 async def health():
     """Overall health check."""
     from gateway.core.policy_engine import PolicyEngine
+    from sqlalchemy import text
 
     policy_engine = PolicyEngine(opa_url=settings.opa_url)
     opa_healthy = policy_engine.health_check()
@@ -117,7 +118,7 @@ async def health():
     if db_manager:
         try:
             with db_manager.get_session() as session:
-                session.execute("SELECT 1")
+                session.execute(text("SELECT 1"))
                 db_healthy = True
         except Exception:
             pass
