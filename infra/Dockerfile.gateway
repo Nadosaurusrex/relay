@@ -1,3 +1,25 @@
+# ============================================
+# Stage 1: Build Frontend
+# ============================================
+FROM node:18 AS frontend-build
+
+WORKDIR /frontend
+
+# Copy package files
+COPY lib/relay-landing/package*.json ./
+
+# Install dependencies (with legacy peer deps for React 19 compatibility)
+RUN npm ci --legacy-peer-deps
+
+# Copy frontend source
+COPY lib/relay-landing/ ./
+
+# Build frontend
+RUN npm run build
+
+# ============================================
+# Stage 2: Build Gateway
+# ============================================
 FROM python:3.11-slim
 
 # Build argument to force cache invalidation
@@ -23,6 +45,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy gateway code
 COPY gateway/ ./gateway/
 COPY sdk/ ./sdk/
+
+# Copy built frontend from Stage 1
+COPY --from=frontend-build /frontend/dist ./gateway/static
 
 # Copy startup script
 COPY infra/start_gateway.sh ./start_gateway.sh

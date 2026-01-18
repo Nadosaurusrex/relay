@@ -6,11 +6,9 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -73,3 +71,11 @@ infra/aws-cdk/cdk.out/
 *.swp
 .cdk.staging/
 cdk.context.json
+
+# Frontend
+lib/relay-landing/node_modules/
+lib/relay-landing/dist/
+lib/relay-landing/.env.local
+
+# Gateway static files (build artifacts from frontend)
+gateway/static/

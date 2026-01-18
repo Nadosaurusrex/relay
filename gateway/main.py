@@ -13,6 +13,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from gateway.config import get_settings
 from gateway.db.session import DatabaseManager, DatabaseConfig
@@ -89,32 +91,12 @@ app.add_middleware(
 )
 
 
-# Include routers
+# Include routers (API routes must be mounted BEFORE static files)
 app.include_router(manifest.router)
 app.include_router(seal.router)
 app.include_router(audit.router)
 app.include_router(orgs.router)
 app.include_router(agents.router)
-
-
-@app.get("/")
-async def root():
-    """Root endpoint with service information."""
-    return {
-        "service": "Relay Gateway",
-        "version": "1.0.0",
-        "description": "Agent governance with cryptographic proofs",
-        "endpoints": {
-            "validate": "POST /v1/manifest/validate",
-            "verify": "GET /v1/seal/verify",
-            "audit": "GET /v1/audit/query",
-            "health": "GET /v1/manifest/health",
-            "register_org": "POST /v1/orgs/register",
-            "get_org": "GET /v1/orgs/{org_id}",
-            "register_agent": "POST /v1/agents/register",
-            "list_agents": "GET /v1/agents",
-        },
-    }
 
 
 @app.get("/health")
@@ -161,6 +143,13 @@ async def global_exception_handler(request, exc):
             "message": str(exc) if settings.debug else "An unexpected error occurred",
         },
     )
+
+
+# Mount static files (landing page) LAST - this acts as a catch-all
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+    print(f"📄 Serving landing page from {static_dir}")
 
 
 if __name__ == "__main__":
