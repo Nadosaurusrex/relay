@@ -2,6 +2,7 @@ FROM python:3.11-slim
 
 # Build argument to force cache invalidation
 ARG BUILD_DATE=unknown
+RUN echo "Build date: ${BUILD_DATE}"
 
 # Set working directory
 WORKDIR /app

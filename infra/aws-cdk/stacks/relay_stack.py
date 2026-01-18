@@ -236,6 +236,7 @@ class RelayStack(Stack):
         )
 
         # Gateway container
+        import time
         gateway_container = task_definition.add_container(
             "Gateway",
             image=ecs.ContainerImage.from_asset(
@@ -243,6 +244,7 @@ class RelayStack(Stack):
                 file="infra/Dockerfile.gateway",
                 exclude=["infra/aws-cdk/.venv", "infra/aws-cdk/cdk.out", ".git", "**/__pycache__", "venv"],
                 platform=ecr_assets.Platform.LINUX_AMD64,  # Build for x86_64 architecture
+                build_args={"BUILD_DATE": str(int(time.time()))},
             ),
             environment={
                 "RELAY_DB_NAME": "relay",

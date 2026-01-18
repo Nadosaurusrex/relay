@@ -78,6 +78,210 @@ cd examples && jupyter notebook
 python examples/visualize.py
 ```
 
+## 📖 Getting Started - Step by Step
+
+This guide walks you through setting up Relay from scratch (~45 minutes first time).
+
+### Prerequisites Check
+
+Ensure you have:
+- **Python 3.11+**: `python --version`
+- **Docker & Docker Compose**: `docker --version && docker-compose --version`
+- **Git**: For cloning the repository
+
+### Step 1: Clone and Setup Environment (~5 minutes)
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/relay.git
+cd relay
+
+# Create Python virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Step 2: Generate Cryptographic Keys (~2 minutes)
+
+```bash
+# Generate Ed25519 keypair for signing seals
+python scripts/generate_keys.py --output .env
+
+# Verify keys were generated
+grep "RELAY_PRIVATE_KEY" .env
+```
+
+**What this does**: Creates a private/public keypair for signing approved actions with Ed25519 cryptography.
+
+### Step 3: Start Infrastructure (~30 minutes)
+
+```bash
+cd infra
+docker-compose up -d
+
+# Wait for services to be ready (first time pulls Docker images)
+# PostgreSQL: ~2 minutes
+# OPA: ~1 minute
+# Gateway: ~1 minute
+```
+
+**Verify services are healthy:**
+
+```bash
+# Check Gateway
+curl http://localhost:8000/health
+# Expected: {"status": "healthy", "database": "connected", "opa": "connected"}
+
+# Check OPA
+curl http://localhost:8181/health
+# Expected: {}
+
+# Check PostgreSQL
+docker exec -it relay_postgres psql -U relay -d relay -c "SELECT 1;"
+# Expected: 1
+```
+
+**Troubleshooting:**
+- If Gateway is unhealthy, check logs: `docker-compose logs gateway`
+- If database connection fails: `docker-compose restart postgres`
+- If OPA is unreachable: `docker-compose restart opa`
+
+### Step 4: Bootstrap Policies (~5 minutes)
+
+```bash
+# Return to project root
+cd ..
+
+# Load example policies into OPA
+python scripts/bootstrap_policies.py
+
+# Verify policies loaded
+curl http://localhost:8181/v1/policies
+```
+
+**What policies are loaded:**
+- `policies/finance.yaml`: Spending limits for Stripe payments
+- `policies/infrastructure.yaml`: AWS resource constraints
+
+### Step 5: Test Your First API Call (~3 minutes)
+
+**Test an approved action:**
+
+```bash
+curl -X POST http://localhost:8000/v1/manifest/validate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "manifest": {
+      "agent": {
+        "agent_id": "test-agent",
+        "org_id": "test-org"
+      },
+      "action": {
+        "provider": "stripe",
+        "method": "create_payment",
+        "parameters": {"amount": 3500, "currency": "USD"}
+      },
+      "justification": {
+        "reasoning": "Test payment under $50 limit"
+      }
+    }
+  }'
+```
+
+**Expected response** (approved):
+```json
+{
+  "manifest_id": "uuid-...",
+  "approved": true,
+  "seal": {
+    "seal_id": "seal_...",
+    "signature": "...",
+    "expires_at": "2026-01-18T10:35:00Z"
+  }
+}
+```
+
+**Test a denied action:**
+
+```bash
+curl -X POST http://localhost:8000/v1/manifest/validate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "manifest": {
+      "agent": {
+        "agent_id": "test-agent",
+        "org_id": "test-org"
+      },
+      "action": {
+        "provider": "stripe",
+        "method": "create_payment",
+        "parameters": {"amount": 7500, "currency": "USD"}
+      },
+      "justification": {
+        "reasoning": "Test payment exceeding limit"
+      }
+    }
+  }'
+```
+
+**Expected response** (denied):
+```json
+{
+  "manifest_id": "uuid-...",
+  "approved": false,
+  "denial_reason": "Payment exceeds $50.00 limit"
+}
+```
+
+### Step 6: Integrate with Your Agent (~3 minutes)
+
+**Python SDK (recommended):**
+
+```python
+from sdk.client import RelayClient
+from sdk.decorator import protect
+
+# Initialize client
+relay = RelayClient(
+    gateway_url="http://localhost:8000",
+    agent_id="my-agent",
+    org_id="my-org"
+)
+
+# Protect any function
+@protect(provider="stripe", method="create_payment")
+def process_payment(amount: int, currency: str):
+    # Your payment logic here
+    return {"status": "success", "amount": amount}
+
+# Use it
+try:
+    result = process_payment(4500, "USD")  # Approved
+    print(f"✅ Payment succeeded: {result}")
+except PolicyViolationError as e:
+    print(f"❌ Blocked: {e.denial_reason}")
+```
+
+### Step 7: Query Audit Trail (~2 minutes)
+
+```bash
+# View all actions
+curl http://localhost:8000/v1/audit/query
+
+# View statistics
+curl http://localhost:8000/v1/audit/stats
+```
+
+**You're Done!** 🎉
+
+Next steps:
+- Explore Jupyter notebooks in `examples/`
+- Write custom policies in `policies/`
+- Integrate with your existing agents
+
 ## 📦 Installation
 
 ### Prerequisites
@@ -187,6 +391,226 @@ class SalesAgent:
         # Protected by Relay
         return stripe.Charge.create(amount=amount, currency="USD")
 ```
+
+## 🌐 Framework-Agnostic Integration
+
+Relay works with **any programming language** that can make HTTP requests. While the Python SDK provides the best developer experience, you can integrate from JavaScript, Go, Rust, or any other language.
+
+### Python SDK (3 Lines) - Recommended
+
+```python
+from sdk.client import RelayClient
+from sdk.decorator import protect
+
+relay = RelayClient(gateway_url="http://localhost:8000", agent_id="...", org_id="...")
+
+@protect(provider="stripe", method="create_payment")
+def process_payment(amount: int):
+    return stripe.Charge.create(amount=amount, currency="USD")
+```
+
+**Complexity**: Very Low - automatic manifest building, error handling, seal lifecycle
+
+### JavaScript/TypeScript (HTTP API)
+
+```javascript
+// 1. Validate action with Relay
+async function processPayment(amount) {
+  const response = await fetch('http://localhost:8000/v1/manifest/validate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      manifest: {
+        agent: {agent_id: "sales-agent", org_id: "acme-corp"},
+        action: {
+          provider: "stripe",
+          method: "create_payment",
+          parameters: {amount: amount, currency: "USD"}
+        },
+        justification: {reasoning: "Customer order #12345"}
+      }
+    })
+  });
+
+  const result = await response.json();
+
+  // 2. Execute if approved
+  if (result.approved) {
+    const charge = await stripe.charges.create({
+      amount: amount,
+      currency: "USD"
+    });
+
+    // 3. Mark seal as executed (prevents replay attacks)
+    await fetch(
+      `http://localhost:8000/v1/seal/mark-executed?seal_id=${result.seal.seal_id}`,
+      {method: 'POST'}
+    );
+
+    return charge;
+  } else {
+    throw new Error(`Policy denied: ${result.denial_reason}`);
+  }
+}
+
+// Usage
+try {
+  await processPayment(4500);  // $45.00
+  console.log('✅ Payment approved and executed');
+} catch (error) {
+  console.error('❌ Payment blocked:', error.message);
+}
+```
+
+**Complexity**: Moderate - manual manifest building, error handling
+
+### Go (HTTP API)
+
+```go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "net/http"
+)
+
+type Manifest struct {
+    Agent struct {
+        AgentID string `json:"agent_id"`
+        OrgID   string `json:"org_id"`
+    } `json:"agent"`
+    Action struct {
+        Provider   string                 `json:"provider"`
+        Method     string                 `json:"method"`
+        Parameters map[string]interface{} `json:"parameters"`
+    } `json:"action"`
+    Justification struct {
+        Reasoning string `json:"reasoning"`
+    } `json:"justification"`
+}
+
+func processPayment(amount int) error {
+    // 1. Build manifest
+    manifest := Manifest{}
+    manifest.Agent.AgentID = "sales-agent"
+    manifest.Agent.OrgID = "acme-corp"
+    manifest.Action.Provider = "stripe"
+    manifest.Action.Method = "create_payment"
+    manifest.Action.Parameters = map[string]interface{}{
+        "amount":   amount,
+        "currency": "USD",
+    }
+    manifest.Justification.Reasoning = "Customer order #12345"
+
+    body, _ := json.Marshal(map[string]interface{}{"manifest": manifest})
+
+    // 2. Validate with Relay
+    resp, err := http.Post(
+        "http://localhost:8000/v1/manifest/validate",
+        "application/json",
+        bytes.NewBuffer(body),
+    )
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+
+    var result map[string]interface{}
+    json.NewDecoder(resp.Body).Decode(&result)
+
+    // 3. Execute if approved
+    if result["approved"].(bool) {
+        // Execute payment with Stripe SDK
+        // ...
+
+        // Mark seal as executed
+        sealID := result["seal"].(map[string]interface{})["seal_id"].(string)
+        http.Post(
+            fmt.Sprintf("http://localhost:8000/v1/seal/mark-executed?seal_id=%s", sealID),
+            "application/json",
+            nil,
+        )
+
+        return nil
+    } else {
+        return fmt.Errorf("policy denied: %s", result["denial_reason"])
+    }
+}
+```
+
+**Complexity**: Moderate - type-safe manifest building
+
+### LangChain Integration (Python)
+
+```python
+from langchain.agents import Tool
+from sdk.decorator import protect
+
+# Wrap any function with @protect
+@protect(provider="crm", method="update_lead_score")
+def update_lead_score(lead_id: str, score: int):
+    crm_api.update_lead(lead_id, score)
+    return f"Updated lead {lead_id} to score {score}"
+
+# Use as LangChain tool
+tools = [
+    Tool(
+        name="UpdateLeadScore",
+        func=update_lead_score,
+        description="Update lead score in CRM (protected by Relay governance)"
+    )
+]
+
+# Agent will use the tool, Relay intercepts and validates
+agent = initialize_agent(tools, llm, agent="zero-shot-react-description")
+agent.run("Update lead ABC123 to score 85")
+```
+
+### MCP Server Integration
+
+```python
+# Expose Relay audit trail as MCP resource
+import mcp
+
+@mcp.resource("relay://audit/recent")
+def get_recent_audit():
+    response = requests.get("http://localhost:8000/v1/audit/query?limit=50")
+    return response.json()
+
+# Agents can query their own audit history
+audit = mcp.read_resource("relay://audit/recent?agent_id=my-agent")
+```
+
+### Comparison: SDK vs HTTP API
+
+| Feature | Python SDK | HTTP API (any language) |
+|---------|-----------|-------------------------|
+| **Code changes** | 3 lines | 20-30 lines |
+| **Manifest building** | Automatic | Manual |
+| **Error handling** | Built-in | Manual |
+| **Seal lifecycle** | Automatic | Manual |
+| **Type safety** | Pydantic models | JSON validation |
+| **Best for** | Python agents | Non-Python agents |
+
+### When to Use Each Approach
+
+**Use Python SDK when**:
+- Building Python agents (LangChain, CrewAI, custom)
+- Want minimal code changes
+- Need automatic error handling
+
+**Use HTTP API when**:
+- Agent is written in JavaScript, Go, Rust, etc.
+- Need fine-grained control over manifest building
+- Integrating with existing non-Python codebases
+
+**Both approaches provide**:
+- Same policy enforcement guarantees
+- Same cryptographic seals
+- Same audit trail immutability
+- Same fail-closed safety
 
 ## 📝 Policy Management
 
@@ -335,41 +759,52 @@ locust -f tests/load/locustfile.py
 
 Target: 1000 requests/second with <100ms p99 latency
 
-## 📚 API Reference
+## 📚 Complete API Reference
 
-### POST /v1/manifest/validate
+Relay exposes 12 REST endpoints for manifest validation, seal management, audit queries, and multi-tenancy.
 
-Validate a manifest against policies.
+### Core Workflow Endpoints
+
+#### 1. POST `/v1/manifest/validate` - Validate Agent Actions
+
+The heart of Relay - validates agent actions against policies, generates cryptographic seals, and writes to audit ledger.
 
 **Request:**
-```json
-{
-  "manifest": {
-    "agent": {
-      "agent_id": "sales-agent-001",
-      "org_id": "acme-corp"
+```bash
+curl -X POST http://localhost:8000/v1/manifest/validate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <optional-jwt-token>" \
+  -d '{
+    "manifest": {
+      "agent": {
+        "agent_id": "sales-agent-001",
+        "org_id": "acme-corp"
+      },
+      "action": {
+        "provider": "stripe",
+        "method": "create_payment",
+        "parameters": {"amount": 4500, "currency": "USD"}
+      },
+      "justification": {
+        "reasoning": "Customer approved quote Q-2026-001",
+        "confidence_score": 0.95
+      }
     },
-    "action": {
-      "provider": "stripe",
-      "method": "create_payment",
-      "parameters": {"amount": 4500, "currency": "USD"}
-    },
-    "justification": {
-      "reasoning": "Customer approved quote Q-2026-001"
-    }
-  }
-}
+    "dry_run": false
+  }'
 ```
 
 **Response (Approved):**
 ```json
 {
-  "manifest_id": "uuid-123",
+  "manifest_id": "550e8400-e29b-41d4-a716-446655440000",
   "approved": true,
   "seal": {
     "seal_id": "seal_1705491000_abc123",
     "signature": "kZXJ0aWZpY2F0ZSBm...",
-    "expires_at": "2026-01-17T10:35:05Z"
+    "public_key": "MCowBQYDK2VwAyEA...",
+    "issued_at": "2026-01-18T10:30:05Z",
+    "expires_at": "2026-01-18T10:35:05Z"
   },
   "policy_version": "v1.2.3"
 }
@@ -378,20 +813,49 @@ Validate a manifest against policies.
 **Response (Denied):**
 ```json
 {
-  "manifest_id": "uuid-123",
+  "manifest_id": "550e8400-e29b-41d4-a716-446655440000",
   "approved": false,
   "denial_reason": "Payment exceeds $50.00 limit",
   "policy_version": "v1.2.3"
 }
 ```
 
-### GET /v1/seal/verify
+**Parameters:**
+- `dry_run` (optional, boolean): If true, validates without writing to audit trail
 
-Verify a seal's authenticity.
+**Authentication:** Optional JWT token (if `RELAY_REQUIRE_JWT=true`)
+
+---
+
+#### 2. POST `/v1/seal/mark-executed` - Prevent Replay Attacks
+
+Called after action execution to mark seal as one-time-use.
 
 **Request:**
+```bash
+curl -X POST "http://localhost:8000/v1/seal/mark-executed?seal_id=seal_1705491000_abc123"
 ```
-GET /v1/seal/verify?seal_id=seal_1705491000_abc123
+
+**Response:**
+```json
+{
+  "seal_id": "seal_1705491000_abc123",
+  "marked_executed": true,
+  "executed_at": "2026-01-18T10:31:00Z"
+}
+```
+
+**Use Case:** Prevents the same seal from being used multiple times (replay attack prevention).
+
+---
+
+#### 3. GET `/v1/seal/verify` - Verify Seal Authenticity
+
+Downstream services can independently verify seal cryptographic signatures.
+
+**Request:**
+```bash
+curl "http://localhost:8000/v1/seal/verify?seal_id=seal_1705491000_abc123"
 ```
 
 **Response:**
@@ -401,21 +865,344 @@ GET /v1/seal/verify?seal_id=seal_1705491000_abc123
   "valid": true,
   "approved": true,
   "expired": false,
-  "already_executed": false
+  "already_executed": false,
+  "manifest_id": "550e8400-e29b-41d4-a716-446655440000",
+  "issued_at": "2026-01-18T10:30:05Z",
+  "expires_at": "2026-01-18T10:35:05Z"
 }
 ```
 
-### GET /v1/audit/query
+**Fields:**
+- `valid`: Signature verification result
+- `expired`: Whether seal has passed TTL
+- `already_executed`: Whether seal was marked as used
 
-Query the audit ledger.
+**Use Case:** Stripe/AWS/Salesforce can verify seals without calling back to Relay.
 
-**Parameters:**
+---
+
+### Audit & Compliance Endpoints
+
+#### 4. GET `/v1/audit/query` - Query Audit Trail
+
+Retrieve audit records with flexible filtering and pagination.
+
+**Request:**
+```bash
+# All actions
+curl "http://localhost:8000/v1/audit/query"
+
+# Filter by organization
+curl "http://localhost:8000/v1/audit/query?org_id=acme-corp"
+
+# Filter by agent
+curl "http://localhost:8000/v1/audit/query?agent_id=sales-agent-001"
+
+# Filter by provider
+curl "http://localhost:8000/v1/audit/query?provider=stripe"
+
+# Only denied actions
+curl "http://localhost:8000/v1/audit/query?approved_only=false"
+
+# Pagination
+curl "http://localhost:8000/v1/audit/query?limit=50&offset=100"
+```
+
+**Response:**
+```json
+{
+  "total": 1523,
+  "limit": 100,
+  "offset": 0,
+  "records": [
+    {
+      "manifest_id": "550e8400-e29b-41d4-a716-446655440000",
+      "agent_id": "sales-agent-001",
+      "org_id": "acme-corp",
+      "provider": "stripe",
+      "method": "create_payment",
+      "parameters": {"amount": 4500, "currency": "USD"},
+      "approved": true,
+      "denial_reason": null,
+      "seal_signature": "kZXJ0aWZpY2F0ZSBm...",
+      "created_at": "2026-01-18T10:30:05Z",
+      "policy_version": "v1.2.3"
+    }
+  ]
+}
+```
+
+**Query Parameters:**
 - `org_id` (optional): Filter by organization
 - `agent_id` (optional): Filter by agent
-- `provider` (optional): Filter by provider
-- `approved_only` (optional): Filter by approval status
-- `limit` (default: 100): Maximum results
+- `provider` (optional): Filter by provider (e.g., "stripe", "aws")
+- `approved_only` (optional, boolean): Show only approved or denied actions
+- `limit` (default: 100): Maximum results per page
 - `offset` (default: 0): Pagination offset
+
+---
+
+#### 5. GET `/v1/audit/stats` - Analytics & Metrics
+
+Aggregate statistics for compliance reporting.
+
+**Request:**
+```bash
+# Global stats
+curl "http://localhost:8000/v1/audit/stats"
+
+# Per-org stats
+curl "http://localhost:8000/v1/audit/stats?org_id=acme-corp"
+
+# Per-agent stats
+curl "http://localhost:8000/v1/audit/stats?agent_id=sales-agent-001"
+```
+
+**Response:**
+```json
+{
+  "total_manifests": 15234,
+  "approved_count": 14890,
+  "denied_count": 344,
+  "approval_rate": 0.977,
+  "executed_count": 14102,
+  "execution_rate": 0.947,
+  "top_agents": [
+    {"agent_id": "sales-agent-001", "count": 523},
+    {"agent_id": "procurement-agent", "count": 412}
+  ],
+  "top_providers": [
+    {"provider": "stripe", "count": 8234},
+    {"provider": "aws", "count": 4123}
+  ],
+  "denials_by_reason": [
+    {"reason": "Payment exceeds limit", "count": 234},
+    {"reason": "Unapproved vendor", "count": 110}
+  ]
+}
+```
+
+**Use Case:** Compliance reports, anomaly detection, agent behavior analysis.
+
+---
+
+### Multi-Tenancy Endpoints
+
+#### 6. POST `/v1/orgs/register` - Bootstrap Organization
+
+Create a new organization and initial admin agent. **Public endpoint** (no auth required).
+
+**Request:**
+```bash
+curl -X POST http://localhost:8000/v1/orgs/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "org_id": "acme-corp",
+    "org_name": "Acme Corporation",
+    "admin_agent_id": "admin-agent-001"
+  }'
+```
+
+**Response:**
+```json
+{
+  "org_id": "acme-corp",
+  "org_name": "Acme Corporation",
+  "admin_agent": {
+    "agent_id": "admin-agent-001",
+    "org_id": "acme-corp",
+    "created_at": "2026-01-18T10:00:00Z"
+  },
+  "jwt_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Use Case:** First-time setup for new organizations.
+
+---
+
+#### 7. GET `/v1/orgs/{org_id}` - Organization Details
+
+Retrieve organization information. **Requires JWT authentication.**
+
+**Request:**
+```bash
+curl http://localhost:8000/v1/orgs/acme-corp \
+  -H "Authorization: Bearer <jwt-token>"
+```
+
+**Response:**
+```json
+{
+  "org_id": "acme-corp",
+  "org_name": "Acme Corporation",
+  "created_at": "2026-01-18T10:00:00Z",
+  "agent_count": 12,
+  "total_manifests": 1523
+}
+```
+
+**Authentication:** JWT token scoped to the organization.
+
+---
+
+#### 8. POST `/v1/agents/register` - Create Agent
+
+Register a new agent within an organization. **Requires JWT authentication.**
+
+**Request:**
+```bash
+curl -X POST http://localhost:8000/v1/agents/register \
+  -H "Authorization: Bearer <jwt-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "sales-agent-001",
+    "agent_name": "Sales Automation Agent",
+    "agent_type": "langchain"
+  }'
+```
+
+**Response:**
+```json
+{
+  "agent_id": "sales-agent-001",
+  "org_id": "acme-corp",
+  "agent_name": "Sales Automation Agent",
+  "agent_type": "langchain",
+  "created_at": "2026-01-18T10:15:00Z",
+  "jwt_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Use Case:** Generate agent-specific JWT tokens for authentication.
+
+---
+
+#### 9. GET `/v1/agents` - List Agents
+
+Retrieve all agents for authenticated organization. **Requires JWT authentication.**
+
+**Request:**
+```bash
+curl http://localhost:8000/v1/agents \
+  -H "Authorization: Bearer <jwt-token>"
+```
+
+**Response:**
+```json
+{
+  "org_id": "acme-corp",
+  "agents": [
+    {
+      "agent_id": "sales-agent-001",
+      "agent_name": "Sales Automation Agent",
+      "agent_type": "langchain",
+      "created_at": "2026-01-18T10:15:00Z"
+    },
+    {
+      "agent_id": "procurement-agent",
+      "agent_name": "Procurement Agent",
+      "agent_type": "crewai",
+      "created_at": "2026-01-18T09:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### Health & Discovery Endpoints
+
+#### 10. GET `/health` - Global Health Check
+
+Check Gateway, database, and OPA connectivity. **Public endpoint.**
+
+**Request:**
+```bash
+curl http://localhost:8000/health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "database": "connected",
+  "opa": "connected",
+  "version": "1.0.0"
+}
+```
+
+**Use Case:** Kubernetes liveness/readiness probes, monitoring systems.
+
+---
+
+#### 11. GET `/v1/manifest/health` - Manifest Service Health
+
+Check OPA availability and current policy version. **Public endpoint.**
+
+**Request:**
+```bash
+curl http://localhost:8000/v1/manifest/health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "opa_available": true,
+  "policy_version": "v1.2.3",
+  "policy_loaded": true
+}
+```
+
+---
+
+#### 12. GET `/` - Service Info
+
+Discover available endpoints and service version. **Public endpoint.**
+
+**Request:**
+```bash
+curl http://localhost:8000/
+```
+
+**Response:**
+```json
+{
+  "service": "relay-gateway",
+  "version": "1.0.0",
+  "description": "Agent Governance System - The Air Gap for Autonomous Actions",
+  "endpoints": {
+    "manifest_validation": "/v1/manifest/validate",
+    "audit_query": "/v1/audit/query",
+    "seal_verify": "/v1/seal/verify",
+    "health": "/health"
+  },
+  "documentation": "https://github.com/yourusername/relay"
+}
+```
+
+---
+
+### Authentication Summary
+
+| Endpoint | Auth Required | Token Type |
+|----------|--------------|------------|
+| `POST /v1/manifest/validate` | Optional* | JWT Bearer |
+| `POST /v1/seal/mark-executed` | No | - |
+| `GET /v1/seal/verify` | No | - |
+| `GET /v1/audit/query` | No** | - |
+| `GET /v1/audit/stats` | No** | - |
+| `POST /v1/orgs/register` | No | - |
+| `GET /v1/orgs/{id}` | Yes | JWT Bearer |
+| `POST /v1/agents/register` | Yes | JWT Bearer |
+| `GET /v1/agents` | Yes | JWT Bearer |
+| `GET /health` | No | - |
+| `GET /v1/manifest/health` | No | - |
+| `GET /` | No | - |
+
+*Optional if `RELAY_REQUIRE_JWT=false` (default for local development)
+**May be restricted in production deployments
 
 ## 🗺️ Roadmap
 
