@@ -39,8 +39,9 @@ class RelayStack(Stack):
         # Create RDS PostgreSQL database
         self.database = self._create_database()
 
-        # Create Secrets for Ed25519 keys
+        # Create Secrets for Ed25519 keys and JWT
         self.ed25519_secret = self._create_ed25519_secret()
+        self.jwt_secret = self._create_jwt_secret()
 
         # Create ECS cluster and service
         self.ecs_service = self._create_ecs_service()
@@ -166,6 +167,23 @@ class RelayStack(Stack):
 
         return secret
 
+    def _create_jwt_secret(self) -> secretsmanager.Secret:
+        """Create JWT secret for authentication"""
+        secret = secretsmanager.Secret(
+            self,
+            "JWTSecret",
+            secret_name=f"relay/jwt-secret-{self.env_name}",
+            description="JWT secret for Relay authentication",
+            generate_secret_string=secretsmanager.SecretStringGenerator(
+                secret_string_template=json.dumps({"placeholder": "true"}),
+                generate_string_key="jwt_secret",
+                password_length=64,
+                exclude_characters="\"'\\",
+            ),
+        )
+
+        return secret
+
     def _create_ecs_service(self) -> ecs_patterns.ApplicationLoadBalancedFargateService:
         """Create ECS Fargate service with ALB"""
 
@@ -198,6 +216,7 @@ class RelayStack(Stack):
         self.policy_bucket.grant_read(task_definition.task_role)
         self.database.secret.grant_read(task_definition.task_role)
         self.ed25519_secret.grant_read(task_definition.task_role)
+        self.jwt_secret.grant_read(task_definition.task_role)
 
         # OPA sidecar container
         opa_container = task_definition.add_container(
@@ -235,6 +254,8 @@ class RelayStack(Stack):
                 "AWS_REGION": self.region,
                 "S3_POLICY_BUCKET": self.policy_bucket.bucket_name,
                 "ENVIRONMENT": self.env_name,
+                "RELAY_JWT_EXPIRY_HOURS": "1",
+                "RELAY_AUTH_REQUIRED": "false",
             },
             secrets={
                 "RELAY_DB_HOST": ecs.Secret.from_secrets_manager(
@@ -248,6 +269,9 @@ class RelayStack(Stack):
                 ),
                 "RELAY_PRIVATE_KEY": ecs.Secret.from_secrets_manager(
                     self.ed25519_secret, "private_key"
+                ),
+                "RELAY_JWT_SECRET": ecs.Secret.from_secrets_manager(
+                    self.jwt_secret, "jwt_secret"
                 ),
             },
             logging=ecs.LogDrivers.aws_logs(
@@ -392,6 +416,13 @@ class RelayStack(Stack):
             "Ed25519SecretARN",
             value=self.ed25519_secret.secret_arn,
             description="Ed25519 Secret ARN",
+        )
+
+        CfnOutput(
+            self,
+            "JWTSecretARN",
+            value=self.jwt_secret.secret_arn,
+            description="JWT Secret ARN",
         )
 
         CfnOutput(
