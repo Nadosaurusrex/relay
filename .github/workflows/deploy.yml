@@ -103,7 +103,7 @@ jobs:
       - name: Build frontend
         working-directory: lib/relay-landing
         run: |
-          npm ci
+          npm ci --legacy-peer-deps
           npm run build
 
       - name: Upload frontend to S3
