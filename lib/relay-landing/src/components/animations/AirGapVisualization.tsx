@@ -32,11 +32,8 @@ const scenarios: Scenario[] = [
   },
 ];
 
-type Phase = 'requesting' | 'evaluating' | 'result' | 'executing' | 'paused';
-
 export function AirGapVisualization() {
   const [currentScenario, setCurrentScenario] = useState(0);
-  const [phase, setPhase] = useState<Phase>('requesting');
   const [showManifest, setShowManifest] = useState(false);
   const [showEvaluation, setShowEvaluation] = useState(false);
   const [showSeal, setShowSeal] = useState(false);
@@ -60,38 +57,29 @@ export function AirGapVisualization() {
     setShowEvaluation(false);
     setShowSeal(false);
     setShowExecution(false);
-    setPhase('requesting');
 
     // Animation sequence
-    const timers: NodeJS.Timeout[] = [];
+    const timers: number[] = [];
 
     // 1. Agent sends request (manifest appears)
     timers.push(setTimeout(() => {
       setShowManifest(true);
-      setPhase('evaluating');
     }, 300));
 
     // 2. Policy evaluates
     timers.push(setTimeout(() => {
       setShowEvaluation(true);
-      setPhase('result');
     }, 1000));
 
     // 3. Show result (seal or denial)
     timers.push(setTimeout(() => {
       setShowSeal(true);
-      if (scenario.approved) {
-        setPhase('executing');
-      } else {
-        setPhase('paused');
-      }
     }, 1800));
 
     // 4. If approved, show execution
     if (scenario.approved) {
       timers.push(setTimeout(() => {
         setShowExecution(true);
-        setPhase('paused');
       }, 2500));
     }
 
