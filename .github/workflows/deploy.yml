@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'gateway/**'
+      - 'sdk/**'
+      - 'infra/**'
+      - 'policy-compiler/**'
+      - 'scripts/**'
+      - '.github/workflows/deploy.yml'
 
 env:
   AWS_REGION: us-east-1
