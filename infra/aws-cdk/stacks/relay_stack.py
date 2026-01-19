@@ -482,7 +482,10 @@ class RelayStack(Stack):
             origin_request_policy_name=f"relay-api-{self.env_name}",
             comment="Forward all headers/cookies for API routes",
             cookie_behavior=cloudfront.OriginRequestCookieBehavior.all(),
-            header_behavior=cloudfront.OriginRequestHeaderBehavior.all_viewer_except_host_header(),
+            header_behavior=cloudfront.OriginRequestHeaderBehavior.allow_list(
+                "Authorization", "Content-Type", "Accept", "Origin", "Referer",
+                "User-Agent", "X-Forwarded-For", "CloudFront-Viewer-Country"
+            ),
             query_string_behavior=cloudfront.OriginRequestQueryStringBehavior.all(),
         )
 
