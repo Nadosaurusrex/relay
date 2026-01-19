@@ -442,6 +442,7 @@ class RelayStack(Stack):
         )
 
         # Cache policy for HTML files (no cache)
+        # Note: When caching is disabled, can't use enable_accept_encoding_*
         html_cache_policy = cloudfront.CachePolicy(
             self,
             "HtmlCachePolicy",
@@ -453,11 +454,10 @@ class RelayStack(Stack):
             cookie_behavior=cloudfront.CacheCookieBehavior.none(),
             header_behavior=cloudfront.CacheHeaderBehavior.none(),
             query_string_behavior=cloudfront.CacheQueryStringBehavior.none(),
-            enable_accept_encoding_brotli=True,
-            enable_accept_encoding_gzip=True,
         )
 
         # Cache policy for API routes (no cache)
+        # Note: When caching is disabled, can't use header_behavior or enable_accept_encoding_*
         api_cache_policy = cloudfront.CachePolicy(
             self,
             "ApiCachePolicy",
@@ -467,27 +467,15 @@ class RelayStack(Stack):
             max_ttl=Duration.seconds(0),
             min_ttl=Duration.seconds(0),
             cookie_behavior=cloudfront.CacheCookieBehavior.all(),
-            header_behavior=cloudfront.CacheHeaderBehavior.allow_list(
-                "Authorization", "Content-Type", "Accept", "Origin", "Referer"
-            ),
+            header_behavior=cloudfront.CacheHeaderBehavior.none(),
             query_string_behavior=cloudfront.CacheQueryStringBehavior.all(),
-            enable_accept_encoding_brotli=True,
-            enable_accept_encoding_gzip=True,
         )
 
-        # Origin request policy for API routes (no Authorization header - it's in CachePolicy)
-        api_origin_request_policy = cloudfront.OriginRequestPolicy(
-            self,
-            "ApiOriginRequestPolicy",
-            origin_request_policy_name=f"relay-api-{self.env_name}",
-            comment="Forward headers/cookies for API routes",
-            cookie_behavior=cloudfront.OriginRequestCookieBehavior.all(),
-            header_behavior=cloudfront.OriginRequestHeaderBehavior.allow_list(
-                "Content-Type", "Accept", "Origin", "Referer",
-                "User-Agent", "X-Forwarded-For", "CloudFront-Viewer-Country"
-            ),
-            query_string_behavior=cloudfront.OriginRequestQueryStringBehavior.all(),
-        )
+        # Origin request policy for API routes
+        # For no-cache routes, all headers must be forwarded via OriginRequestPolicy
+        # (excluding Authorization which must go in CachePolicy even with no cache)
+        # Actually, for no-cache we need a different approach - use managed policy
+        api_origin_request_policy = cloudfront.OriginRequestPolicy.ALL_VIEWER
 
         # Create CloudFront distribution
         distribution = cloudfront.Distribution(
