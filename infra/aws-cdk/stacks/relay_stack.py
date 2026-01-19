@@ -441,35 +441,10 @@ class RelayStack(Stack):
             enable_accept_encoding_gzip=True,
         )
 
-        # Cache policy for HTML files (no cache)
-        # Note: When caching is disabled, can't use enable_accept_encoding_*
-        html_cache_policy = cloudfront.CachePolicy(
-            self,
-            "HtmlCachePolicy",
-            cache_policy_name=f"relay-html-{self.env_name}",
-            comment="Cache policy for HTML files (always fetch fresh)",
-            default_ttl=Duration.seconds(0),
-            max_ttl=Duration.seconds(0),
-            min_ttl=Duration.seconds(0),
-            cookie_behavior=cloudfront.CacheCookieBehavior.none(),
-            header_behavior=cloudfront.CacheHeaderBehavior.none(),
-            query_string_behavior=cloudfront.CacheQueryStringBehavior.none(),
-        )
-
-        # Cache policy for API routes (no cache)
-        # Note: When caching is disabled, can't use header_behavior or enable_accept_encoding_*
-        api_cache_policy = cloudfront.CachePolicy(
-            self,
-            "ApiCachePolicy",
-            cache_policy_name=f"relay-api-{self.env_name}",
-            comment="No caching for API routes",
-            default_ttl=Duration.seconds(0),
-            max_ttl=Duration.seconds(0),
-            min_ttl=Duration.seconds(0),
-            cookie_behavior=cloudfront.CacheCookieBehavior.all(),
-            header_behavior=cloudfront.CacheHeaderBehavior.none(),
-            query_string_behavior=cloudfront.CacheQueryStringBehavior.all(),
-        )
+        # For no-cache routes, use CloudFront managed policy
+        # Custom policies with TTL=0 have too many restrictions
+        html_cache_policy = cloudfront.CachePolicy.CACHING_DISABLED
+        api_cache_policy = cloudfront.CachePolicy.CACHING_DISABLED
 
         # Origin request policy for API routes
         # For no-cache routes, all headers must be forwarded via OriginRequestPolicy
