@@ -1,31 +1,7 @@
 # ============================================
-# Stage 1: Build Frontend
+# Gateway Service (Backend Only)
 # ============================================
-FROM node:18 AS frontend-build
-
-# Accept build arguments for environment variables
-ARG VITE_SHEETS_URL
-
-# Set environment variables for Vite build
-ENV VITE_SHEETS_URL=$VITE_SHEETS_URL
-
-WORKDIR /frontend
-
-# Copy package files
-COPY lib/relay-landing/package*.json ./
-
-# Install dependencies (with legacy peer deps for React 19 compatibility)
-RUN npm ci --legacy-peer-deps
-
-# Copy frontend source
-COPY lib/relay-landing/ ./
-
-# Build frontend (Vite will use VITE_SHEETS_URL from environment)
-RUN npm run build
-
-# ============================================
-# Stage 2: Build Gateway
-# ============================================
+# Frontend assets are served separately via S3 + CloudFront
 FROM python:3.11-slim
 
 # Build argument to force cache invalidation
@@ -51,9 +27,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy gateway code
 COPY gateway/ ./gateway/
 COPY sdk/ ./sdk/
-
-# Copy built frontend from Stage 1
-COPY --from=frontend-build /frontend/dist ./gateway/static
 
 # Copy startup script
 COPY infra/start_gateway.sh ./start_gateway.sh

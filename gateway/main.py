@@ -13,8 +13,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
 
 from gateway.config import get_settings
 from gateway.db.session import DatabaseManager, DatabaseConfig
@@ -145,11 +143,10 @@ async def global_exception_handler(request, exc):
     )
 
 
-# Mount static files (landing page) LAST - this acts as a catch-all
-static_dir = Path(__file__).parent / "static"
-if static_dir.exists():
-    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
-    print(f"📄 Serving landing page from {static_dir}")
+# Frontend assets are served via CloudFront (S3 origin)
+# Gateway only serves API routes (/v1/*, /health)
+print("🌐 Frontend: CloudFront (S3 origin)")
+print("🔌 Gateway: API routes only")
 
 
 if __name__ == "__main__":

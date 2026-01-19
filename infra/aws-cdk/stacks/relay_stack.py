@@ -12,6 +12,9 @@ from aws_cdk import (
     aws_ecs_patterns as ecs_patterns,
     aws_rds as rds,
     aws_s3 as s3,
+    aws_s3_deployment as s3_deployment,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
     aws_secretsmanager as secretsmanager,
     aws_iam as iam,
     aws_logs as logs,
@@ -47,6 +50,12 @@ class RelayStack(Stack):
 
         # Create ECS cluster and service
         self.ecs_service = self._create_ecs_service()
+
+        # Create S3 bucket for frontend assets
+        self.frontend_bucket = self._create_frontend_bucket()
+
+        # Create CloudFront distribution
+        self.cloudfront_distribution = self._create_cloudfront_distribution()
 
         # Create CloudWatch dashboard
         self._create_monitoring()
@@ -100,6 +109,29 @@ class RelayStack(Stack):
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             removal_policy=RemovalPolicy.RETAIN if self.env_name == "prod" else RemovalPolicy.DESTROY,
             auto_delete_objects=False if self.env_name == "prod" else True,
+        )
+
+        return bucket
+
+    def _create_frontend_bucket(self) -> s3.Bucket:
+        """Create S3 bucket for frontend static assets"""
+        bucket = s3.Bucket(
+            self,
+            "FrontendBucket",
+            bucket_name=f"relay-frontend-{self.account}-{self.region}-{self.env_name}",
+            versioned=True,  # Enable versioning for rollback capability
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,  # CloudFront will access via OAC
+            removal_policy=RemovalPolicy.RETAIN if self.env_name == "prod" else RemovalPolicy.DESTROY,
+            auto_delete_objects=False if self.env_name == "prod" else True,
+            cors=[
+                s3.CorsRule(
+                    allowed_methods=[s3.HttpMethods.GET, s3.HttpMethods.HEAD],
+                    allowed_origins=["*"],
+                    allowed_headers=["*"],
+                    max_age=3600,
+                )
+            ],
         )
 
         return bucket
@@ -265,7 +297,6 @@ class RelayStack(Stack):
                 platform=ecr_assets.Platform.LINUX_AMD64,  # Build for x86_64 architecture
                 build_args={
                     "BUILD_DATE": str(int(time.time())),
-                    "VITE_SHEETS_URL": "https://script.google.com/macros/s/AKfycbxqFfXcercn8oF5xus_kmryGtIJwAFv_zSZMOP35TlINTpU2vm0P8awhQDq8QMblA7K/exec",
                 },
             ),
             environment={
@@ -366,6 +397,172 @@ class RelayStack(Stack):
 
         return service
 
+    def _create_cloudfront_distribution(self) -> cloudfront.Distribution:
+        """Create CloudFront distribution with S3 and ALB origins"""
+
+        # Create Origin Access Control for S3
+        oac = cloudfront.CfnOriginAccessControl(
+            self,
+            "FrontendOAC",
+            origin_access_control_config=cloudfront.CfnOriginAccessControl.OriginAccessControlConfigProperty(
+                name=f"relay-frontend-oac-{self.env_name}",
+                origin_access_control_origin_type="s3",
+                signing_behavior="always",
+                signing_protocol="sigv4",
+            ),
+        )
+
+        # Create S3 origin for frontend assets
+        s3_origin = origins.S3Origin(
+            self.frontend_bucket,
+            origin_access_identity=None,  # Use OAC instead
+        )
+
+        # Create ALB origin for API routes
+        alb_origin = origins.LoadBalancerV2Origin(
+            self.ecs_service.load_balancer,
+            protocol_policy=cloudfront.OriginProtocolPolicy.HTTP_ONLY,  # ALB is HTTP
+            http_port=80,
+        )
+
+        # Cache policy for static assets (long cache)
+        assets_cache_policy = cloudfront.CachePolicy(
+            self,
+            "AssetsCachePolicy",
+            cache_policy_name=f"relay-assets-{self.env_name}",
+            comment="Cache policy for versioned frontend assets",
+            default_ttl=Duration.days(365),
+            max_ttl=Duration.days(365),
+            min_ttl=Duration.days(365),
+            cookie_behavior=cloudfront.CacheCookieBehavior.none(),
+            header_behavior=cloudfront.CacheHeaderBehavior.none(),
+            query_string_behavior=cloudfront.CacheQueryStringBehavior.none(),
+            enable_accept_encoding_brotli=True,
+            enable_accept_encoding_gzip=True,
+        )
+
+        # Cache policy for HTML files (no cache)
+        html_cache_policy = cloudfront.CachePolicy(
+            self,
+            "HtmlCachePolicy",
+            cache_policy_name=f"relay-html-{self.env_name}",
+            comment="Cache policy for HTML files (always fetch fresh)",
+            default_ttl=Duration.seconds(0),
+            max_ttl=Duration.seconds(0),
+            min_ttl=Duration.seconds(0),
+            cookie_behavior=cloudfront.CacheCookieBehavior.none(),
+            header_behavior=cloudfront.CacheHeaderBehavior.none(),
+            query_string_behavior=cloudfront.CacheQueryStringBehavior.none(),
+            enable_accept_encoding_brotli=True,
+            enable_accept_encoding_gzip=True,
+        )
+
+        # Cache policy for API routes (no cache)
+        api_cache_policy = cloudfront.CachePolicy(
+            self,
+            "ApiCachePolicy",
+            cache_policy_name=f"relay-api-{self.env_name}",
+            comment="No caching for API routes",
+            default_ttl=Duration.seconds(0),
+            max_ttl=Duration.seconds(0),
+            min_ttl=Duration.seconds(0),
+            cookie_behavior=cloudfront.CacheCookieBehavior.all(),
+            header_behavior=cloudfront.CacheHeaderBehavior.allow_list(
+                "Authorization", "Content-Type", "Accept", "Origin", "Referer"
+            ),
+            query_string_behavior=cloudfront.CacheQueryStringBehavior.all(),
+            enable_accept_encoding_brotli=True,
+            enable_accept_encoding_gzip=True,
+        )
+
+        # Origin request policy for API routes
+        api_origin_request_policy = cloudfront.OriginRequestPolicy(
+            self,
+            "ApiOriginRequestPolicy",
+            origin_request_policy_name=f"relay-api-{self.env_name}",
+            comment="Forward all headers/cookies for API routes",
+            cookie_behavior=cloudfront.OriginRequestCookieBehavior.all(),
+            header_behavior=cloudfront.OriginRequestHeaderBehavior.all_viewer(),
+            query_string_behavior=cloudfront.OriginRequestQueryStringBehavior.all(),
+        )
+
+        # Create CloudFront distribution
+        distribution = cloudfront.Distribution(
+            self,
+            "FrontendDistribution",
+            default_behavior=cloudfront.BehaviorOptions(
+                origin=s3_origin,
+                cache_policy=html_cache_policy,
+                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+            ),
+            additional_behaviors={
+                # API routes -> ALB (no cache)
+                "/v1/*": cloudfront.BehaviorOptions(
+                    origin=alb_origin,
+                    cache_policy=api_cache_policy,
+                    origin_request_policy=api_origin_request_policy,
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                    allowed_methods=cloudfront.AllowedMethods.ALLOW_ALL,
+                ),
+                "/health": cloudfront.BehaviorOptions(
+                    origin=alb_origin,
+                    cache_policy=api_cache_policy,
+                    origin_request_policy=api_origin_request_policy,
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                    allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+                ),
+                # Assets -> S3 (long cache)
+                "/assets/*": cloudfront.BehaviorOptions(
+                    origin=s3_origin,
+                    cache_policy=assets_cache_policy,
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                    allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+                ),
+                # SVG files -> S3 (short cache)
+                "*.svg": cloudfront.BehaviorOptions(
+                    origin=s3_origin,
+                    cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                    allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+                ),
+            },
+            default_root_object="index.html",
+            error_responses=[
+                # SPA fallback: 403/404 -> index.html
+                cloudfront.ErrorResponse(
+                    http_status=403,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                    ttl=Duration.seconds(0),
+                ),
+                cloudfront.ErrorResponse(
+                    http_status=404,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                    ttl=Duration.seconds(0),
+                ),
+            ],
+            comment=f"Relay frontend distribution - {self.env_name}",
+            price_class=cloudfront.PriceClass.PRICE_CLASS_100,  # US, Canada, Europe (cheapest)
+        )
+
+        # Update S3 bucket policy to allow CloudFront access via OAC
+        self.frontend_bucket.add_to_resource_policy(
+            iam.PolicyStatement(
+                actions=["s3:GetObject"],
+                resources=[self.frontend_bucket.arn_for_objects("*")],
+                principals=[iam.ServicePrincipal("cloudfront.amazonaws.com")],
+                conditions={
+                    "StringEquals": {
+                        "AWS:SourceArn": f"arn:aws:cloudfront::{self.account}:distribution/{distribution.distribution_id}"
+                    }
+                },
+            )
+        )
+
+        return distribution
+
     def _create_monitoring(self):
         """Create CloudWatch dashboard and alarms"""
 
@@ -461,4 +658,25 @@ class RelayStack(Stack):
             "SheetsURLSecretARN",
             value=self.sheets_url_secret.secret_arn,
             description="Google Sheets URL Secret ARN",
+        )
+
+        CfnOutput(
+            self,
+            "FrontendBucketName",
+            value=self.frontend_bucket.bucket_name,
+            description="S3 Bucket for Frontend Assets",
+        )
+
+        CfnOutput(
+            self,
+            "CloudFrontURL",
+            value=f"https://{self.cloudfront_distribution.distribution_domain_name}",
+            description="CloudFront Distribution URL",
+        )
+
+        CfnOutput(
+            self,
+            "CloudFrontDistributionID",
+            value=self.cloudfront_distribution.distribution_id,
+            description="CloudFront Distribution ID",
         )

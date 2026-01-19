@@ -80,6 +80,67 @@ jobs:
                      --context region=${{ env.AWS_REGION }} \
                      --require-approval never
 
+      - name: Get CloudFront deployment info
+        id: cf_info
+        run: |
+          STACK_NAME="RelayStack-${{ env.ENVIRONMENT }}"
+
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+
+          CF_DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionID'].OutputValue" \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+
+          echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
+          echo "cf_distribution_id=$CF_DISTRIBUTION_ID" >> $GITHUB_OUTPUT
+
+      - name: Build frontend
+        working-directory: lib/relay-landing
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload frontend to S3
+        working-directory: lib/relay-landing
+        run: |
+          aws s3 sync dist/ s3://${{ steps.cf_info.outputs.frontend_bucket }}/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "*.html" \
+            --exclude "*.svg" \
+            --region ${{ env.AWS_REGION }}
+
+          # HTML files with no cache
+          aws s3 sync dist/ s3://${{ steps.cf_info.outputs.frontend_bucket }}/ \
+            --exclude "*" \
+            --include "*.html" \
+            --cache-control "public,max-age=0,must-revalidate" \
+            --content-type "text/html" \
+            --region ${{ env.AWS_REGION }}
+
+          # SVG files with short cache
+          aws s3 sync dist/ s3://${{ steps.cf_info.outputs.frontend_bucket }}/ \
+            --exclude "*" \
+            --include "*.svg" \
+            --cache-control "public,max-age=3600" \
+            --content-type "image/svg+xml" \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.cf_info.outputs.cf_distribution_id }} \
+            --paths "/*" \
+            --region ${{ env.AWS_REGION }}
+
+          echo "CloudFront cache invalidation initiated"
+
       - name: Update Ed25519 Secret
         run: |
           if [ -f .env ]; then
@@ -103,19 +164,27 @@ jobs:
             --output text \
             --region ${{ env.AWS_REGION }})
 
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontURL'].OutputValue" \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+
           echo "alb_url=$ALB_URL" >> $GITHUB_OUTPUT
+          echo "cloudfront_url=$CLOUDFRONT_URL" >> $GITHUB_OUTPUT
           echo "### Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ env.ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Endpoint:** $ALB_URL" >> $GITHUB_STEP_SUMMARY
+          echo "**CloudFront URL:** $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
+          echo "**ALB URL (direct):** $ALB_URL" >> $GITHUB_STEP_SUMMARY
 
       - name: Health Check
         run: |
           sleep 30
-          ALB_URL="${{ steps.outputs.outputs.alb_url }}"
-          if [ ! -z "$ALB_URL" ]; then
-            echo "Testing endpoint: $ALB_URL"
-            curl -f "$ALB_URL/health" || echo "Health check failed (may take a few minutes for deployment to complete)"
+          CLOUDFRONT_URL="${{ steps.outputs.outputs.cloudfront_url }}"
+          if [ ! -z "$CLOUDFRONT_URL" ]; then
+            echo "Testing CloudFront endpoint: $CLOUDFRONT_URL"
+            curl -f "$CLOUDFRONT_URL/health" || echo "Health check failed (CloudFront may take a few minutes to propagate)"
           fi
 
       - name: Deployment notification
