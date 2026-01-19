@@ -12,7 +12,7 @@ export default defineConfig({
         manualChunks: {
           // Split vendor code for better caching
           react: ['react', 'react-dom', 'react-router-dom'],
-          monaco: ['@monaco-editor/react', 'monaco-editor'],
+          monaco: ['@monaco-editor/react'],
         },
       },
     },
