@@ -11,30 +11,28 @@ export function Hero() {
         {/* Main Content */}
         <div className="space-y-8">
           <h1 className="text-5xl md:text-7xl font-normal leading-tight tracking-tight">
-            Accountability
+            DocuSign for
             <br />
-            infrastructure
+            Machine-to-Machine
             <br />
-            for AI agents
+            Reasoning
           </h1>
 
           <p className="text-xl text-muted max-w-2xl">
-            Cryptographic proof that your autonomous agents followed policy.
-            <br />
-            Every decision, logged and verifiable.
+            When agents negotiate across companies, who signs?
           </p>
         </div>
 
         {/* CTA */}
         <div className="flex gap-4">
           <Button onClick={scrollToWaitlist}>
-            Join Waitlist
+            Join the Standard
           </Button>
           <Button
             variant="ghost"
             onClick={() => window.open('https://github.com/your-org/relay', '_blank')}
           >
-            GitHub
+            Read Documentation
           </Button>
         </div>
       </div>

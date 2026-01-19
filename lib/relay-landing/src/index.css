@@ -60,4 +60,42 @@
   .text-muted {
     color: hsl(var(--muted));
   }
+
+  /* Mobile optimizations */
+  @media (max-width: 768px) {
+    /* Reduce animation complexity on mobile */
+    .snap-y {
+      scroll-snap-type: y proximity;
+    }
+
+    /* Improve touch targets */
+    button, a {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    :root {
+      --foreground: 0 0% 100%;
+      --muted: 0 0% 70%;
+      --border: 0 0% 50%;
+    }
+  }
+
+  /* Focus visible for accessibility */
+  *:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.5);
+    outline-offset: 2px;
+  }
 }

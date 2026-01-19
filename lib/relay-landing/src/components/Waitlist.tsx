@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Select } from './ui/select';
 
 export function Waitlist() {
   const [email, setEmail] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [useCase, setUseCase] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -23,6 +26,8 @@ export function Waitlist() {
           body: JSON.stringify({
             type: 'waitlist',
             email,
+            company_name: companyName,
+            use_case: useCase,
             utm_source: params.get('utm_source') || '',
             utm_medium: params.get('utm_medium') || '',
             utm_campaign: params.get('utm_campaign') || '',
@@ -34,6 +39,8 @@ export function Waitlist() {
       await new Promise(resolve => setTimeout(resolve, 1000));
       setIsSuccess(true);
       setEmail('');
+      setCompanyName('');
+      setUseCase('');
     } catch (err) {
       console.error('Waitlist submission error:', err);
     } finally {
@@ -55,22 +62,39 @@ export function Waitlist() {
               <h2 className="text-4xl md:text-5xl font-normal">
                 Get early access
               </h2>
-              <p className="text-xl text-muted">
-                Join engineering teams building the next generation of autonomous systems.
-              </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex gap-4 max-w-md">
+            <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
               <Input
                 type="email"
-                placeholder="your@email.com"
+                placeholder="Company Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isSubmitting}
-                className="flex-1"
               />
-              <Button type="submit" disabled={isSubmitting}>
+              <Input
+                type="text"
+                placeholder="Company Name"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                required
+                disabled={isSubmitting}
+              />
+              <Select
+                value={useCase}
+                onChange={(e) => setUseCase(e.target.value)}
+                required
+                disabled={isSubmitting}
+              >
+                <option value="">Use Case</option>
+                <option value="procurement">Procurement</option>
+                <option value="sales">Sales</option>
+                <option value="legal">Legal</option>
+                <option value="infrastructure">Infrastructure</option>
+                <option value="other">Other</option>
+              </Select>
+              <Button type="submit" disabled={isSubmitting} className="w-full">
                 {isSubmitting ? 'Joining...' : 'Join'}
               </Button>
             </form>

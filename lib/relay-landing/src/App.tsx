@@ -1,8 +1,8 @@
 import { AnimatedBackground } from './components/AnimatedBackground';
 import { Hero } from './components/Hero';
-import { ProblemViz } from './components/ProblemViz';
-import { SolutionCards } from './components/SolutionCards';
-import { HowItWorks } from './components/HowItWorks';
+import { BilateralProblem } from './components/BilateralProblem';
+import { StandardComponents } from './components/StandardComponents';
+import { AdoptionPath } from './components/AdoptionPath';
 import { Waitlist } from './components/Waitlist';
 import { Footer } from './components/Footer';
 
@@ -16,13 +16,13 @@ function App() {
           <Hero />
         </div>
         <div className="snap-start">
-          <ProblemViz />
+          <BilateralProblem />
         </div>
         <div className="snap-start">
-          <SolutionCards />
+          <StandardComponents />
         </div>
         <div className="snap-start">
-          <HowItWorks />
+          <AdoptionPath />
         </div>
         <div className="snap-start">
           <Waitlist />
