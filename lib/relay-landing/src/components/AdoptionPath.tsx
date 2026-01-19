@@ -33,14 +33,19 @@ export function AdoptionPath() {
   }, [selected, currentCode.length, prefersReducedMotion]);
 
   return (
-    <section className="min-h-screen flex items-center justify-center px-6 py-20 border-t border-white/10">
+    <section className="min-h-screen flex items-center justify-center px-6 py-24 border-t border-white/10">
       <div className="max-w-4xl w-full space-y-16">
-        <h2 className="text-4xl md:text-5xl font-normal">
-          The journey
-        </h2>
+        <div className="space-y-4">
+          <h2 className="text-3xl md:text-4xl font-medium text-white/90">
+            Works with any framework, any action
+          </h2>
+          <p className="text-lg text-muted/60 max-w-2xl leading-relaxed">
+            Protect purchase orders, contract approvals, vendor onboarding, or any critical business action
+          </p>
+        </div>
 
         <div className="space-y-6">
-          <h3 className="text-xl">Three lines needed to start</h3>
+          <h3 className="text-lg font-medium text-white/90">Three lines needed to start</h3>
           <CodeExamples
             selected={selected}
             onSelect={setSelected}

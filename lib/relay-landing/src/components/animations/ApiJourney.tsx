@@ -4,10 +4,34 @@ import { useRef } from 'react';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface ApiJourneyProps {
-  provider: 'aws' | 'salesforce' | 'github';
+  provider: 'aws' | 'salesforce' | 'github' | 'stripe' | 'erp' | 'legal' | 'crm';
 }
 
 const JOURNEY_STEPS = {
+  erp: [
+    { label: 'Agent Request', detail: 'create_po("Office Depot", 8500)' },
+    { label: 'Policy Check', detail: 'amount < 10000 ✓' },
+    { label: 'Seal Issued', detail: 'Ed25519 signature' },
+    { label: 'Action Executed', detail: 'PO created' },
+  ],
+  legal: [
+    { label: 'Agent Request', detail: 'approve_contract(150000, 24)' },
+    { label: 'Policy Check', detail: 'value >= 50000 ✗' },
+    { label: 'Seal Denied', detail: 'Exceeds authority' },
+    { label: 'Action Blocked', detail: 'Contract rejected' },
+  ],
+  crm: [
+    { label: 'Agent Request', detail: 'onboard_vendor("VENDOR-12345")' },
+    { label: 'Policy Check', detail: 'vendor in approved_list ✓' },
+    { label: 'Seal Issued', detail: 'Ed25519 signature' },
+    { label: 'Action Executed', detail: 'Vendor onboarded' },
+  ],
+  stripe: [
+    { label: 'Agent Request', detail: 'charge_card(4999, "salesforce")' },
+    { label: 'Policy Check', detail: 'amount < 5000 ✓' },
+    { label: 'Seal Issued', detail: 'Ed25519 signature' },
+    { label: 'Action Executed', detail: 'Payment charged' },
+  ],
   aws: [
     { label: 'Agent Request', detail: 'terminate_instance(i-abc123)' },
     { label: 'Policy Check', detail: 'instance in region us-east-1 ✓' },
@@ -36,7 +60,7 @@ export function ApiJourney({ provider }: ApiJourneyProps) {
   const steps = JOURNEY_STEPS[provider];
 
   return (
-    <div ref={ref} className="w-full py-12">
+    <div ref={ref} className="w-full py-4">
       <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-4">
         {steps.map((step, i) => (
           <div key={`${provider}-${i}`} className="flex items-center w-full md:w-auto">
@@ -72,19 +96,6 @@ export function ApiJourney({ provider }: ApiJourneyProps) {
           </div>
         ))}
       </div>
-
-      {/* Response indicator */}
-      <motion.div
-        key={provider}
-        className="mt-8 p-4 border border-white/10 bg-black/20 font-mono text-xs"
-        initial={prefersReducedMotion ? {} : { opacity: 0 }}
-        animate={isInView ? { opacity: 1 } : {}}
-        transition={{ delay: 1.2, duration: 0.5 }}
-      >
-        <div className="text-green-400/60">
-          {`{ "decision": "approved", "seal": "a8f3d2...9c7e1b" }`}
-        </div>
-      </motion.div>
     </div>
   );
 }

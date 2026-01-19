@@ -4,10 +4,10 @@ export function Footer() {
       <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between gap-8 text-sm text-muted">
         <div>
           <div className="font-bold text-white mb-2">RELAY</div>
-          <div>The trust layer for agent commerce</div>
+          <div>Policy enforcement and audit trails for AI agents</div>
         </div>
 
-        <div className="flex gap-8">
+        {/* <div className="flex gap-8">
           <a
             href="https://github.com/your-org/relay"
             target="_blank"
@@ -30,7 +30,7 @@ export function Footer() {
           >
             Twitter
           </a>
-        </div>
+        </div> */}
       </div>
     </footer>
   );

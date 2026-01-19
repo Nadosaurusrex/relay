@@ -2,25 +2,31 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 const EXAMPLES = [
   {
-    label: 'AWS',
-    provider: 'aws' as const,
-    code: `@protect(provider="aws", method="terminate_instance")
-def cleanup_instance(instance_id: str):
-    ec2.terminate_instances([instance_id])`
+    label: 'LangChain + ERP',
+    framework: 'LangChain',
+    provider: 'erp' as const,
+    code: `# LangChain tool creating purchase orders
+@protect(provider="erp", method="create_po")
+def create_purchase_order(vendor: str, amount: int):
+    erp.create_po(vendor, amount, dept="ops")`
   },
   {
-    label: 'Salesforce',
-    provider: 'salesforce' as const,
-    code: `@protect(provider="salesforce", method="update_deal")
-def close_deal(deal_id: str, amount: int):
-    sf.Deal.update(deal_id, status="closed")`
+    label: 'CrewAI + Legal',
+    framework: 'CrewAI',
+    provider: 'legal' as const,
+    code: `# CrewAI agent approving contracts
+@protect(provider="legal", method="approve_contract")
+def approve_vendor_contract(value: int, duration: int):
+    legal.approve(value, duration, status="approved")`
   },
   {
-    label: 'GitHub',
-    provider: 'github' as const,
-    code: `@protect(provider="github", method="merge_pr")
-def merge_pull_request(repo: str, pr_number: int):
-    github.pull_request(repo, pr_number).merge()`
+    label: 'Custom + CRM',
+    framework: 'Custom',
+    provider: 'crm' as const,
+    code: `# Custom agent onboarding vendors
+@protect(provider="crm", method="onboard_vendor")
+def onboard_new_vendor(vendor_id: str, name: str):
+    crm.create_vendor(vendor_id, name, terms="net30")`
   }
 ];
 

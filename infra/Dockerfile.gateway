@@ -3,6 +3,12 @@
 # ============================================
 FROM node:18 AS frontend-build
 
+# Accept build arguments for environment variables
+ARG VITE_SHEETS_URL
+
+# Set environment variables for Vite build
+ENV VITE_SHEETS_URL=$VITE_SHEETS_URL
+
 WORKDIR /frontend
 
 # Copy package files
@@ -14,7 +20,7 @@ RUN npm ci --legacy-peer-deps
 # Copy frontend source
 COPY lib/relay-landing/ ./
 
-# Build frontend
+# Build frontend (Vite will use VITE_SHEETS_URL from environment)
 RUN npm run build
 
 # ============================================

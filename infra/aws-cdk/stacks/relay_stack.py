@@ -39,9 +39,10 @@ class RelayStack(Stack):
         # Create RDS PostgreSQL database
         self.database = self._create_database()
 
-        # Create Secrets for Ed25519 keys and JWT
+        # Create Secrets for Ed25519 keys, JWT, and frontend config
         self.ed25519_secret = self._create_ed25519_secret()
         self.jwt_secret = self._create_jwt_secret()
+        self.sheets_url_secret = self._create_sheets_url_secret()
 
         # Create ECS cluster and service
         self.ecs_service = self._create_ecs_service()
@@ -184,6 +185,22 @@ class RelayStack(Stack):
 
         return secret
 
+    def _create_sheets_url_secret(self) -> secretsmanager.Secret:
+        """Create secret for Google Sheets waitlist URL"""
+        secret = secretsmanager.Secret(
+            self,
+            "SheetsURLSecret",
+            secret_name=f"relay/sheets-url-{self.env_name}",
+            description="Google Sheets URL for waitlist submissions",
+            secret_string_value=secretsmanager.SecretStringValueBeta1.from_token(
+                json.dumps({
+                    "sheets_url": "https://script.google.com/macros/s/AKfycbxqFfXcercn8oF5xus_kmryGtIJwAFv_zSZMOP35TlINTpU2vm0P8awhQDq8QMblA7K/exec"
+                })
+            ),
+        )
+
+        return secret
+
     def _create_ecs_service(self) -> ecs_patterns.ApplicationLoadBalancedFargateService:
         """Create ECS Fargate service with ALB"""
 
@@ -217,6 +234,7 @@ class RelayStack(Stack):
         self.database.secret.grant_read(task_definition.task_role)
         self.ed25519_secret.grant_read(task_definition.task_role)
         self.jwt_secret.grant_read(task_definition.task_role)
+        self.sheets_url_secret.grant_read(task_definition.task_role)
 
         # OPA sidecar container
         opa_container = task_definition.add_container(
@@ -244,7 +262,10 @@ class RelayStack(Stack):
                 file="infra/Dockerfile.gateway",
                 exclude=["infra/aws-cdk/.venv", "infra/aws-cdk/cdk.out", ".git", "**/__pycache__", "venv"],
                 platform=ecr_assets.Platform.LINUX_AMD64,  # Build for x86_64 architecture
-                build_args={"BUILD_DATE": str(int(time.time()))},
+                build_args={
+                    "BUILD_DATE": str(int(time.time())),
+                    "VITE_SHEETS_URL": "https://script.google.com/macros/s/AKfycbxqFfXcercn8oF5xus_kmryGtIJwAFv_zSZMOP35TlINTpU2vm0P8awhQDq8QMblA7K/exec",
+                },
             ),
             environment={
                 "RELAY_DB_NAME": "relay",
@@ -432,4 +453,11 @@ class RelayStack(Stack):
             "DatabaseSecretARN",
             value=self.database.secret.secret_arn,
             description="Database Credentials Secret ARN",
+        )
+
+        CfnOutput(
+            self,
+            "SheetsURLSecretARN",
+            value=self.sheets_url_secret.secret_arn,
+            description="Google Sheets URL Secret ARN",
         )
