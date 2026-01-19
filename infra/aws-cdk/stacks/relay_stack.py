@@ -475,15 +475,15 @@ class RelayStack(Stack):
             enable_accept_encoding_gzip=True,
         )
 
-        # Origin request policy for API routes
+        # Origin request policy for API routes (no Authorization header - it's in CachePolicy)
         api_origin_request_policy = cloudfront.OriginRequestPolicy(
             self,
             "ApiOriginRequestPolicy",
             origin_request_policy_name=f"relay-api-{self.env_name}",
-            comment="Forward all headers/cookies for API routes",
+            comment="Forward headers/cookies for API routes",
             cookie_behavior=cloudfront.OriginRequestCookieBehavior.all(),
             header_behavior=cloudfront.OriginRequestHeaderBehavior.allow_list(
-                "Authorization", "Content-Type", "Accept", "Origin", "Referer",
+                "Content-Type", "Accept", "Origin", "Referer",
                 "User-Agent", "X-Forwarded-For", "CloudFront-Viewer-Country"
             ),
             query_string_behavior=cloudfront.OriginRequestQueryStringBehavior.all(),
