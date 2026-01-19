@@ -6,6 +6,7 @@ from aws_cdk import (
     Stack,
     Duration,
     RemovalPolicy,
+    SecretValue,
     aws_ec2 as ec2,
     aws_ecs as ecs,
     aws_ecs_patterns as ecs_patterns,
@@ -192,7 +193,7 @@ class RelayStack(Stack):
             "SheetsURLSecret",
             secret_name=f"relay/sheets-url-{self.env_name}",
             description="Google Sheets URL for waitlist submissions",
-            secret_string_value=secretsmanager.SecretStringValueBeta1.from_token(
+            secret_string_value=SecretValue.unsafe_plain_text(
                 json.dumps({
                     "sheets_url": "https://script.google.com/macros/s/AKfycbxqFfXcercn8oF5xus_kmryGtIJwAFv_zSZMOP35TlINTpU2vm0P8awhQDq8QMblA7K/exec"
                 })
