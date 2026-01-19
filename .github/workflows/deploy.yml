@@ -10,7 +10,9 @@ on:
       - 'infra/**'
       - 'policy-compiler/**'
       - 'scripts/**'
+      - 'lib/relay-landing/**'
       - '.github/workflows/deploy.yml'
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
