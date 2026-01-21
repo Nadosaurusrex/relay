@@ -142,16 +142,11 @@ export function AirGapVisualization() {
         </motion.div>
       </div>
 
-      {/* Policy Layer - THE AIR GAP */}
+      {/* Policy Layer */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="text-xs font-medium text-white/40 uppercase tracking-wide">
-              Policy Layer
-            </div>
-            <div className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-[10px] font-bold text-amber-300 uppercase tracking-wider">
-              The Air Gap
-            </div>
+          <div className="text-xs font-medium text-white/40 uppercase tracking-wide">
+            Policy Layer
           </div>
           <div className="text-xs text-white/30 font-mono">
             Deterministic code · Immune to prompts
