@@ -65,36 +65,47 @@ class RelayStack(Stack):
 
     def _create_vpc(self) -> ec2.Vpc:
         """Create VPC with public and private subnets"""
+        # For dev: no NAT Gateway (ECS runs in public subnets with public IPs)
+        # For prod: 1 NAT Gateway (ECS runs in private subnets)
+        is_prod = self.env_name == "prod"
+
+        # Build subnet configuration conditionally
+        subnet_config = [
+            ec2.SubnetConfiguration(
+                name="Public",
+                subnet_type=ec2.SubnetType.PUBLIC,
+                cidr_mask=24,
+            ),
+            ec2.SubnetConfiguration(
+                name="Isolated",
+                subnet_type=ec2.SubnetType.PRIVATE_ISOLATED,
+                cidr_mask=24,
+            ),
+        ]
+
+        # Only add private subnet with egress for prod (requires NAT Gateway)
+        if is_prod:
+            subnet_config.insert(1, ec2.SubnetConfiguration(
+                name="Private",
+                subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS,
+                cidr_mask=24,
+            ))
+
         vpc = ec2.Vpc(
             self,
             "RelayVPC",
             max_azs=2,  # Use 2 availability zones
-            nat_gateways=1,  # 1 NAT Gateway to save costs (use 2 for prod)
-            subnet_configuration=[
-                ec2.SubnetConfiguration(
-                    name="Public",
-                    subnet_type=ec2.SubnetType.PUBLIC,
-                    cidr_mask=24,
-                ),
-                ec2.SubnetConfiguration(
-                    name="Private",
-                    subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS,
-                    cidr_mask=24,
-                ),
-                ec2.SubnetConfiguration(
-                    name="Isolated",
-                    subnet_type=ec2.SubnetType.PRIVATE_ISOLATED,
-                    cidr_mask=24,
-                ),
-            ],
+            nat_gateways=1 if is_prod else 0,  # No NAT Gateway for dev (saves ~$35/month)
+            subnet_configuration=subnet_config,
         )
 
-        # Add VPC Flow Logs
-        vpc.add_flow_log(
-            "VPCFlowLog",
-            destination=ec2.FlowLogDestination.to_cloud_watch_logs(),
-            traffic_type=ec2.FlowLogTrafficType.ALL,
-        )
+        # Add VPC Flow Logs only for prod (saves ~$12/month for dev)
+        if is_prod:
+            vpc.add_flow_log(
+                "VPCFlowLog",
+                destination=ec2.FlowLogDestination.to_cloud_watch_logs(),
+                traffic_type=ec2.FlowLogTrafficType.ALL,
+            )
 
         return vpc
 
@@ -180,7 +191,8 @@ class RelayStack(Stack):
             deletion_protection=False,  # Allow easy cleanup for V1
             removal_policy=RemovalPolicy.DESTROY,
             enable_performance_insights=False,  # Not included in free tier
-            cloudwatch_logs_exports=["postgresql"],
+            # Disable CloudWatch log exports for dev (saves ~$4/month)
+            cloudwatch_logs_exports=["postgresql"] if self.env_name == "prod" else [],
         )
 
         return database
@@ -238,19 +250,21 @@ class RelayStack(Stack):
         """Create ECS Fargate service with ALB"""
 
         # Create ECS cluster
+        # Disable Container Insights for dev (saves ~$7/month)
         cluster = ecs.Cluster(
             self,
             "RelayCluster",
             vpc=self.vpc,
-            container_insights=True,
+            container_insights=self.env_name == "prod",
         )
 
         # Create log group
+        # Dev: 3 days retention (saves ~$2/month), Prod: 1 month
         log_group = logs.LogGroup(
             self,
             "RelayLogGroup",
             log_group_name=f"/ecs/relay-gateway-{self.env_name}",
-            retention=logs.RetentionDays.ONE_WEEK if self.env_name != "prod" else logs.RetentionDays.ONE_MONTH,
+            retention=logs.RetentionDays.THREE_DAYS if self.env_name != "prod" else logs.RetentionDays.ONE_MONTH,
             removal_policy=RemovalPolicy.DESTROY,
         )
 
@@ -350,6 +364,9 @@ class RelayStack(Stack):
         )
 
         # Create Fargate service with ALB
+        # For dev: run in public subnet with public IP (no NAT Gateway needed)
+        # For prod: run in private subnet with NAT Gateway
+        is_prod = self.env_name == "prod"
         service = ecs_patterns.ApplicationLoadBalancedFargateService(
             self,
             "RelayService",
@@ -358,6 +375,10 @@ class RelayStack(Stack):
             desired_count=1,  # Free Tier: Single task
             public_load_balancer=True,
             health_check_grace_period=Duration.seconds(60),
+            task_subnets=ec2.SubnetSelection(
+                subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS if is_prod else ec2.SubnetType.PUBLIC
+            ),
+            assign_public_ip=not is_prod,  # Public IP needed when in public subnet without NAT
         )
 
         # Allow ECS to connect to RDS
@@ -530,7 +551,10 @@ class RelayStack(Stack):
         return distribution
 
     def _create_monitoring(self):
-        """Create CloudWatch dashboard and alarms"""
+        """Create CloudWatch dashboard and alarms (prod only)"""
+        # Skip monitoring for dev (saves ~$2/month)
+        if self.env_name != "prod":
+            return
 
         # Create dashboard
         dashboard = cloudwatch.Dashboard(
